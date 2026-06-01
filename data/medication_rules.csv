@@ -1,0 +1,31 @@
+pattern,class,allowed,indication,diagnosis_search,route,dose,unit,frequency,days_per_pack,max_days,max_qty,poct,drug_remark_template,skip_reason
+AMLODIPINE,Anti-Hypertensives,yes,Hypertension,Essential hypertension,Oral,1,tab(s)/cap(s),Every morning,10,90,,BP;HR,refill medication,
+HOVASC,Anti-Hypertensives,yes,Hypertension,Essential hypertension,Oral,1,tab(s)/cap(s),Every morning,10,90,,BP;HR,refill medication,
+ROSUVASTATIN,Cholesterol-Lowering Drugs,yes,Hyperlipidaemia,Disorders of lipoprotein metabolism,Oral,1,tab(s)/cap(s),Every night,30,90,,BP;HR,refill medication,
+SIMVASTATIN,Cholesterol-Lowering Drugs,yes,Hyperlipidaemia,Disorders of lipoprotein metabolism,Oral,1,tab(s)/cap(s),Every night,30,90,,BP;HR,refill medication,
+ATORVASTATIN,Cholesterol-Lowering Drugs,yes,Hyperlipidaemia,Disorders of lipoprotein metabolism,Oral,1,tab(s)/cap(s),Every night,30,90,,BP;HR,refill medication,
+XIGDUO,Anti-Diabetics,yes,Diabetes mellitus,Diabetes mellitus,Oral,1,tab(s)/cap(s),Every morning,28,90,,Glucose,refill medication,
+METFORMIN,Anti-Diabetics,yes,Diabetes mellitus,Diabetes mellitus,Oral,1,tab(s)/cap(s),Twice daily,30,90,,Glucose,refill medication,
+GLICLAZIDE,Anti-Diabetics,yes,Diabetes mellitus,Diabetes mellitus,Oral,1,tab(s)/cap(s),Every morning,30,90,,Glucose,refill medication,
+NEXIUM,Proton Pump Inhibitors,yes,GERD,Gastro-oesophageal reflux disease,Oral,1,tab(s)/cap(s),Every morning,14,30,,BP;HR,refill medication,
+ESOMEPRAZOLE,Proton Pump Inhibitors,yes,GERD,Gastro-oesophageal reflux disease,Oral,1,tab(s)/cap(s),Every morning,14,30,,BP;HR,refill medication,
+NORGESIC,Muscle relaxants + NSAIDs,yes,Muscle pain,Myalgia,Oral,1,tab(s)/cap(s),Three times daily,12,14,30,BP;HR,pain score <=6; refill medication,
+ANAREX,Muscle relaxants + NSAIDs,yes,Muscle pain,Myalgia,Oral,1,tab(s)/cap(s),Three times daily,10,14,30,BP;HR,pain score <=6; refill medication,
+IBUPROFEN,Muscle relaxants + NSAIDs,yes,Pain,Acute pain,Oral,1,tab(s)/cap(s),Three times daily,10,14,30,BP;HR,pain score <=6; refill medication,
+NAPROXEN,Muscle relaxants + NSAIDs,yes,Pain,Acute pain,Oral,1,tab(s)/cap(s),Twice daily,10,14,30,BP;HR,pain score <=6; refill medication,
+PONSTAN,Muscle relaxants + NSAIDs,yes,Pain,Acute pain,Oral,1,tab(s)/cap(s),Three times daily,10,14,30,BP;HR,pain score <=6; refill medication,
+GABAPENTIN,Pregabalin/Gabapentin,yes,Neuropathic pain,Neuropathic pain,Oral,1,tab(s)/cap(s),Every night,30,30,,BP;HR,neuropathic pain; refill medication,
+PREGABALIN,Pregabalin/Gabapentin,yes,Neuropathic pain,Neuropathic pain,Oral,1,tab(s)/cap(s),Every night,30,30,,BP;HR,neuropathic pain; refill medication,
+IQNYDE,Antiemetics / Antivertigo,yes,Nausea vomiting,Nausea and vomiting,Oral,1,tab(s)/cap(s),Twice daily,4,7,30,BP;HR,refill medication,
+DOMPERIDONE,Antiemetics / Antivertigo,yes,Nausea vomiting,Nausea and vomiting,Oral,1,tab(s)/cap(s),Three times daily,10,7,25,BP;HR,refill medication,
+VOZAN,Potassium-competitive acid blocker,yes,GERD,Gastro-oesophageal reflux disease,Oral,1,tab(s)/cap(s),Every morning,1,30,,BP;HR,refill medication,
+ZOCOL,Antifungal/antibiotic,omit,Fungal infection,,Oral,1,cap(s),Once only,1,0,,BP;HR,,Oral antifungal/antibiotic class: handbook says antibiotic/antifungal oral not allowed via EPS; use teleconsultation
+FLUCONAZOLE,Antifungal/antibiotic,omit,Fungal infection,,Oral,1,cap(s),Once only,1,0,,BP;HR,,Oral antifungal/antibiotic class: handbook says oral antifungal not allowed via EPS
+AMOXICILLIN,Antibiotic,omit,Infection,,Oral,1,cap(s),Three times daily,10,0,,BP;HR,,Antibiotic not allowed via EPS
+AZITHROMYCIN,Antibiotic,omit,Infection,,Oral,1,tab(s),Once daily,3,0,,BP;HR,,Antibiotic not allowed via EPS
+TRAMADOL,Opioid,omit,Pain,,Oral,1,cap(s),Three times daily,10,0,,BP;HR,,Opioid not allowed via EPS
+WARFARIN,Anticoagulant,omit,Anticoagulation,,Oral,1,tab(s),Once daily,30,0,,BP;HR,,Warfarin not allowed via EPS
+SILDENAFIL,PDE-5 inhibitor,omit,Erectile dysfunction,,Oral,1,tab(s),When needed,1,0,,BP;HR,,PDE-5 inhibitors not allowed via EPS
+CIALIS,PDE-5 inhibitor,omit,Erectile dysfunction,,Oral,1,tab(s),When needed,1,0,,BP;HR,,PDE-5 inhibitors not allowed via EPS
+TADALAFIL,PDE-5 inhibitor,omit,Erectile dysfunction,,Oral,1,tab(s),When needed,1,0,,BP;HR,,PDE-5 inhibitors not allowed via EPS
+AMITRIPTYLINE,Tricyclic antidepressant,omit,Neuropathic pain,,Oral,1,tab(s),Every night,30,0,,BP;HR,,Tricyclic antidepressants not allowed via EPS
