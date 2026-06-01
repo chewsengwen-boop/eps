@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 import shutil
 import uuid
+import csv
+from html import escape
 from pathlib import Path
 from typing import Dict, Any
 
@@ -12,11 +14,42 @@ from . import eps_bulk_core
 
 EDITABLE_COLUMNS = [
     'status', 'skip_reason', 'patient_name', 'patient_ic', 'mobile', 'email', 'item_name', 'indication',
-    'diagnosis_search', 'route', 'dose', 'dose_unit', 'frequency', 'duration_days', 'prescribed_amount',
+    'diagnosis_search', 'doc2us_icd_code', 'doc2us_indication', 'route', 'dose', 'dose_unit', 'frequency', 'duration_days', 'prescribed_amount',
     'prescribed_unit', 'drug_remark', 'questionnaire_mode', 'bp', 'hr', 'glucose', 'last_appointment_date',
     'next_appointment_date', 'follow_up_under', 'referred_by', 'pharmacist_reg_no', 'screening_remarks'
 ]
 NUMERIC_COLUMNS = {'qty', 'duration_days', 'prescribed_amount'}
+
+
+def load_doc2us_indication_options() -> list[tuple[str, str]]:
+    """Doc2Us default EPS indication dropdown options harvested from /Api/Icd/GetDefaultIcdsForEPS.
+
+    Kept as a local controlled list so the app can work offline and pharmacists can review the AI-preselected choice.
+    """
+    path = Path(__file__).resolve().parents[1] / 'data' / 'doc2us_default_indications.csv'
+    with open(path, newline='', encoding='utf-8-sig') as f:
+        return [(r['icd_code'], r['icd_description']) for r in csv.DictReader(f)]
+
+
+def render_indication_select(row_idx: int, selected_code: str, selected_text: str = '') -> str:
+    selected_code = str(selected_code or '').strip()
+    selected_text = str(selected_text or '').strip()
+    options = ['<option value="">-- pharmacist choose Doc2Us indication --</option>']
+    found = False
+    for code, desc in load_doc2us_indication_options():
+        is_selected = code == selected_code or (not selected_code and desc == selected_text)
+        if is_selected:
+            found = True
+        selected_attr = 'selected' if is_selected else ''
+        options.append(
+            f'<option value="{escape(code)}" data-desc="{escape(desc)}" {selected_attr}>'
+            f'{escape(code)} - {escape(desc)}</option>'
+        )
+    if selected_code and not found:
+        options.insert(1, f'<option value="{escape(selected_code)}" data-desc="{escape(selected_text)}" selected>{escape(selected_code)} - {escape(selected_text)}</option>')
+    hidden = f'<input type="hidden" name="row_{row_idx}_doc2us_indication" value="{escape(selected_text)}">'
+    html_options = ''.join(options)
+    return f'<select name="row_{row_idx}_doc2us_icd_code">{html_options}</select>{hidden}'
 
 
 def _allowed_logins() -> dict[str, str]:

@@ -35,10 +35,13 @@ DEFAULTS = {
 @dataclass
 class Rule:
     pattern: str
+    active_ingredients: str
     klass: str
     allowed: str
     indication: str
     diagnosis_search: str
+    doc2us_icd_code: str
+    doc2us_indication: str
     route: str
     dose: str
     unit: str
@@ -74,6 +77,9 @@ class PlanRow:
     duration_days: int
     prescribed_amount: int
     prescribed_unit: str
+    active_ingredients: str
+    doc2us_icd_code: str
+    doc2us_indication: str
     drug_remark: str
     questionnaire_mode: str
     bp: str
@@ -115,8 +121,11 @@ def load_rules(path: Path = RULES_PATH) -> List[Rule]:
     with open(path, newline='', encoding='utf-8-sig') as f:
         for r in csv.DictReader(f):
             rows.append(Rule(
-                pattern=r['pattern'].upper(), klass=r['class'], allowed=r['allowed'].lower(),
-                indication=r['indication'], diagnosis_search=r['diagnosis_search'], route=r['route'],
+                pattern=r['pattern'].upper(), active_ingredients=r.get('active_ingredients', r['pattern']).upper(),
+                klass=r['class'], allowed=r['allowed'].lower(),
+                indication=r['indication'], diagnosis_search=r['diagnosis_search'],
+                doc2us_icd_code=r.get('doc2us_icd_code', ''), doc2us_indication=r.get('doc2us_indication', ''),
+                route=r['route'],
                 dose=r['dose'], unit=r['unit'], frequency=r['frequency'],
                 days_per_pack=float(r['days_per_pack'] or 0), max_days=int(float(r['max_days'] or 0)),
                 max_qty=float(r['max_qty']) if r.get('max_qty') else None,
@@ -182,7 +191,7 @@ def make_plan(input_xlsx: str, pharmacist_name: str, reg_no: str, apply_date: dt
         if rule is None:
             status, reason = 'REVIEW', 'No medication rule matched; pharmacist must add rule before live submit'
             # safe defaults only for report visibility
-            rule = Rule('', '', 'review', '', '', 'Oral', '1', 'tab(s)/cap(s)', '', 0, 0, None, 'BP;HR', '', reason)
+            rule = Rule('', '', '', 'review', '', '', '', '', 'Oral', '1', 'tab(s)/cap(s)', '', 0, 0, None, 'BP;HR', '', reason)
             duration = 0; amount = int(qty) if qty else 0
         elif rule.allowed == 'omit':
             status, reason = 'OMIT', rule.skip_reason or 'Medication rule is marked omit'
@@ -215,6 +224,8 @@ def make_plan(input_xlsx: str, pharmacist_name: str, reg_no: str, apply_date: dt
             diagnosis_search=rule.diagnosis_search, route=rule.route, dose=rule.dose,
             dose_unit=rule.unit, frequency=rule.frequency, duration_days=duration,
             prescribed_amount=amount, prescribed_unit='tablet(s)',
+            active_ingredients=rule.active_ingredients, doc2us_icd_code=rule.doc2us_icd_code,
+            doc2us_indication=rule.doc2us_indication,
             drug_remark=rule.drug_remark_template or DEFAULTS['remarks'],
             questionnaire_mode=DEFAULTS['mode'], bp=DEFAULTS['bp'], hr=DEFAULTS['hr'], glucose=DEFAULTS['glucose'],
             last_appointment_date=apply_date.isoformat(), next_appointment_date=next_date.isoformat(),

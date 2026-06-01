@@ -2,7 +2,16 @@ import io
 from pathlib import Path
 import pandas as pd
 
-from app.web_logic import authenticate, make_job_id, process_upload, load_plan, save_edited_plan, create_submit_package
+from app.web_logic import (
+    authenticate,
+    make_job_id,
+    process_upload,
+    load_plan,
+    save_edited_plan,
+    create_submit_package,
+    load_doc2us_indication_options,
+    render_indication_select,
+)
 
 SAMPLE = '/mnt/c/Users/User/Downloads/OUTLET POISON B&C TRANSACTION NO_01-06-2026 (Web).xlsx'
 
@@ -45,6 +54,24 @@ def test_process_upload_generates_ready_review_omit(tmp_path):
     df = pd.read_excel(job['output_path'], sheet_name='EPS_PLAN')
     assert 'ZOCOL' in df[df.status == 'OMIT'].iloc[0].item_name
     assert df[df.patient_name.str.contains('LU SIEW', na=False)].iloc[0].status == 'REVIEW'
+    statin = df[df.item_name.str.contains('ROSUVASTATIN', case=False, na=False)].iloc[0]
+    assert statin.active_ingredients == 'ROSUVASTATIN'
+    assert statin.doc2us_icd_code == '5C80.0Z'
+    assert statin.doc2us_indication == 'Hypercholesterolaemia, unspecified'
+
+
+def test_doc2us_default_indications_are_loaded_from_harvested_dropdown():
+    options = load_doc2us_indication_options()
+    assert ('BA00.Z', 'Essential hypertension, unspecified') in options
+    assert ('5C80.0Z', 'Hypercholesterolaemia, unspecified') in options
+
+
+def test_indication_select_preserves_ai_prereview_choice_and_allows_dropdown_change():
+    html = render_indication_select(3, 'BA00.Z', 'Essential hypertension, unspecified')
+    assert 'name="row_3_doc2us_icd_code"' in html
+    assert 'BA00.Z - Essential hypertension, unspecified' in html
+    assert 'selected' in html
+    assert '5C80.0Z - Hypercholesterolaemia, unspecified' in html
 
 
 def test_save_edited_plan_updates_review_row_and_rebuilds_workbook(tmp_path):

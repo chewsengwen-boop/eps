@@ -7,7 +7,7 @@ from html import escape
 from fastapi import FastAPI, Request, Form, File, UploadFile, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
 
-from .web_logic import authenticate, process_upload, load_plan, save_edited_plan, create_submit_package, EDITABLE_COLUMNS
+from .web_logic import authenticate, process_upload, load_plan, save_edited_plan, create_submit_package, EDITABLE_COLUMNS, render_indication_select, load_doc2us_indication_options
 
 BASE = Path(__file__).resolve().parents[1]
 JOBS_DIR = BASE / 'jobs'
@@ -47,12 +47,13 @@ def render_review(job_id: str, request: Request, notice: str = '') -> HTMLRespon
             'selected' if status == 'REVIEW' else '',
             'selected' if status == 'OMIT' else '',
         )
+        indication_select = render_indication_select(idx, str(r.get('doc2us_icd_code','')), str(r.get('doc2us_indication','')))
         rows.append(f'''<tr class="{status}">
 <td>{idx}<br>{status_select}</td>
 <td><textarea name="row_{idx}_skip_reason">{escape(str(r.get('skip_reason','')))}</textarea></td>
 <td><input name="row_{idx}_patient_name" value="{escape(str(r.get('patient_name','')))}"><span class="small">IC</span><input name="row_{idx}_patient_ic" value="{escape(str(r.get('patient_ic','')))}"><span class="small">Mobile</span><input name="row_{idx}_mobile" value="{escape(str(r.get('mobile','')))}"><span class="small">Email</span><input name="row_{idx}_email" value="{escape(str(r.get('email','')))}"></td>
-<td>{escape(str(r.get('item_name','')))}<br><span class="small">Qty: {escape(str(r.get('qty','')))} | Class: {escape(str(r.get('medication_class','')))}</span></td>
-<td><input name="row_{idx}_indication" value="{escape(str(r.get('indication','')))}"><span class="small">Diagnosis search</span><input name="row_{idx}_diagnosis_search" value="{escape(str(r.get('diagnosis_search','')))}"></td>
+<td>{escape(str(r.get('item_name','')))}<br><span class="small">Active ingredient(s): {escape(str(r.get('active_ingredients','')))}</span><br><span class="small">Qty: {escape(str(r.get('qty','')))} | Class: {escape(str(r.get('medication_class','')))}</span></td>
+<td><input name="row_{idx}_indication" value="{escape(str(r.get('indication','')))}"><span class="small">AI pre-reviewed Doc2Us indication dropdown</span>{indication_select}<span class="small">Diagnosis search</span><input name="row_{idx}_diagnosis_search" value="{escape(str(r.get('diagnosis_search','')))}"></td>
 <td><span class="small">Route</span><input name="row_{idx}_route" value="{escape(str(r.get('route','')))}"><span class="small">Dose</span><input name="row_{idx}_dose" value="{escape(str(r.get('dose','')))}"><span class="small">Unit</span><input name="row_{idx}_dose_unit" value="{escape(str(r.get('dose_unit','')))}"><span class="small">Frequency</span><input name="row_{idx}_frequency" value="{escape(str(r.get('frequency','')))}"></td>
 <td><span class="small">Days</span><input name="row_{idx}_duration_days" value="{escape(str(r.get('duration_days','')))}"><span class="small">Amount</span><input name="row_{idx}_prescribed_amount" value="{escape(str(r.get('prescribed_amount','')))}"><span class="small">Unit</span><input name="row_{idx}_prescribed_unit" value="{escape(str(r.get('prescribed_unit','')))}"></td>
 <td><span class="small">BP</span><input name="row_{idx}_bp" value="{escape(str(r.get('bp','')))}"><span class="small">HR</span><input name="row_{idx}_hr" value="{escape(str(r.get('hr','')))}"><span class="small">Glucose</span><input name="row_{idx}_glucose" value="{escape(str(r.get('glucose','')))}"><span class="small">Next appt</span><input name="row_{idx}_next_appointment_date" value="{escape(str(r.get('next_appointment_date','')))}"></td>
@@ -68,10 +69,19 @@ def render_review(job_id: str, request: Request, notice: str = '') -> HTMLRespon
 <form method="post" action="/submit/{escape(job_id)}" style="display:inline"><button type="submit" class="danger">Prepare Doc2Us Submit Queue</button></form>
 </div>
 <form method="post" action="/save/{escape(job_id)}">
-<p class="note"><b>Editable now:</b> status, patient info, indication, dose, frequency, days, amount, BP/HR/glucose, remarks. Change REVIEW to READY only after pharmacist confirms the medication details are correct.</p>
+<p class="note"><b>Editable now:</b> status, patient info, active-ingredient-mapped medication, AI pre-reviewed Doc2Us indication dropdown, dose, frequency, days, amount, BP/HR/glucose, remarks. Change REVIEW to READY only after pharmacist confirms the medication details are correct.</p>
 <div class="grid"><table><thead><tr><th># / Status</th><th>Reason</th><th>Patient</th><th>Medication</th><th>Indication</th><th>Dose/Frequency</th><th>Duration/Amount</th><th>Screening</th><th>Remarks</th></tr></thead><tbody>{''.join(rows)}</tbody></table></div>
 <p><button type="submit">Save Edits + Rebuild Excel</button></p>
 </form>
+<script>
+document.querySelectorAll('select[name$="_doc2us_icd_code"]').forEach(function(sel){{
+  sel.addEventListener('change', function(){{
+    var hidden = sel.parentElement.querySelector('input[name$="_doc2us_indication"]');
+    var opt = sel.options[sel.selectedIndex];
+    if (hidden && opt) hidden.value = opt.getAttribute('data-desc') || '';
+  }});
+}});
+</script>
 <p class="note"><b>Submit queue:</b> This creates a READY-only queue for Doc2Us submission after final review. The live website submission button is separated so accidental upload does not submit prescriptions.</p>
 </main>'''
     return html_page('Review EPS Plan', body)
@@ -207,3 +217,11 @@ def download(job_id: str):
 @app.get('/health')
 def health():
     return {'ok': True}
+
+
+@app.get('/download-source-zip')
+def download_source_zip():
+    zip_path = BASE.parent / 'eps-web-automation.zip'
+    if not zip_path.exists():
+        raise HTTPException(status_code=404, detail='Zip file not found')
+    return FileResponse(str(zip_path), filename='eps-web-automation.zip')
