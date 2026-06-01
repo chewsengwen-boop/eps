@@ -11,6 +11,10 @@ from app.web_logic import (
     create_submit_package,
     load_doc2us_indication_options,
     render_indication_select,
+    validate_doc2us_ready_row,
+    doc2us_deploy_columns,
+    import_edited_doc2us_queue,
+    build_doc2us_automation_manifest,
 )
 
 SAMPLE = '/mnt/c/Users/User/Downloads/OUTLET POISON B&C TRANSACTION NO_01-06-2026 (Web).xlsx'
@@ -98,6 +102,66 @@ def test_create_submit_package_contains_ready_rows_only(tmp_path):
     job = _sample_job(tmp_path)
     package = create_submit_package(tmp_path, job['job_id'])
     assert Path(package['queue_path']).exists()
-    q = pd.read_excel(package['queue_path'])
+    q = pd.read_excel(package['queue_path'], sheet_name='DOC2US_READY_UPLOAD')
     assert set(q['status']) == {'READY'}
     assert len(q) == job['counts']['READY']
+    assert list(q.columns) == doc2us_deploy_columns()
+    assert q['doc2us_icd_code'].notna().all()
+    assert q['active_ingredients'].notna().all()
+
+
+def test_ready_row_validation_requires_doc2us_fields_before_deploy():
+    row = pd.Series({
+        'patient_name': 'Test Patient', 'patient_ic': '900101131234', 'mobile': '0123456789',
+        'item_name': 'AMLODIPINE 10MG', 'active_ingredients': 'AMLODIPINE',
+        'doc2us_icd_code': 'BA00.Z', 'doc2us_indication': 'Essential hypertension, unspecified',
+        'route': 'Oral', 'dose': '1', 'dose_unit': 'tab(s)/cap(s)', 'frequency': 'Every morning',
+        'duration_days': 10, 'prescribed_amount': 10, 'prescribed_unit': 'tablet(s)',
+        'questionnaire_mode': 'LTM', 'bp': '120/80', 'next_appointment_date': '2026-06-11',
+        'follow_up_under': 'klinik kesihatan', 'referred_by': 'Johnny Chew Seng Wen',
+        'pharmacist_reg_no': '018161', 'screening_remarks': 'come refill medication',
+    })
+    assert validate_doc2us_ready_row(row) == []
+    row['doc2us_icd_code'] = ''
+    assert 'Doc2Us indication dropdown must be selected' in validate_doc2us_ready_row(row)
+
+
+def test_create_submit_package_downgrades_invalid_ready_rows_to_review(tmp_path):
+    job = _sample_job(tmp_path)
+    df = load_plan(tmp_path, job['job_id'])
+    idx = int(df[df.status == 'READY'].index[0])
+    save_edited_plan(tmp_path, job['job_id'], {str(idx): {'doc2us_icd_code': '', 'doc2us_indication': ''}})
+    package = create_submit_package(tmp_path, job['job_id'])
+    assert package['invalid_count'] == 1
+    assert package['count'] == job['counts']['READY'] - 1
+    refreshed = load_plan(tmp_path, job['job_id'])
+    assert refreshed.loc[idx, 'status'] == 'REVIEW'
+    assert 'Doc2Us indication dropdown must be selected' in refreshed.loc[idx, 'skip_reason']
+
+
+def test_import_edited_doc2us_queue_roundtrip_revalidates_rows(tmp_path):
+    job = _sample_job(tmp_path)
+    package = create_submit_package(tmp_path, job['job_id'])
+    q = pd.read_excel(package['queue_path'], sheet_name='DOC2US_READY_UPLOAD').astype(object)
+    q.loc[0, 'mobile'] = ''
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine='openpyxl') as w:
+        q.to_excel(w, index=False, sheet_name='DOC2US_READY_UPLOAD')
+    result = import_edited_doc2us_queue(tmp_path, job['job_id'], buf.getvalue(), 'edited.xlsx')
+    assert result['imported_count'] == len(q)
+    assert result['invalid_count'] == 1
+    refreshed = load_plan(tmp_path, job['job_id'])
+    assert (refreshed['status'] == 'REVIEW').sum() >= 2
+    assert 'Mobile number is required' in '; '.join(refreshed['skip_reason'].fillna('').astype(str))
+
+
+def test_build_doc2us_automation_manifest_is_dry_run_and_has_confirm_gate(tmp_path):
+    job = _sample_job(tmp_path)
+    package = create_submit_package(tmp_path, job['job_id'])
+    manifest = build_doc2us_automation_manifest(package['queue_path'], dry_run=True)
+    assert manifest['dry_run'] is True
+    assert manifest['live_submit_enabled'] is False
+    assert manifest['row_count'] == package['count']
+    assert manifest['steps'][0]['action'] == 'login_doc2us_eps'
+    assert any(step['action'] == 'register_patient_if_missing' for step in manifest['steps'])
+    assert any(step['action'] == 'request_prescription_requires_manual_confirm' for step in manifest['steps'])

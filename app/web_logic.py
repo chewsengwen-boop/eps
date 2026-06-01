@@ -19,6 +19,68 @@ EDITABLE_COLUMNS = [
     'next_appointment_date', 'follow_up_under', 'referred_by', 'pharmacist_reg_no', 'screening_remarks'
 ]
 NUMERIC_COLUMNS = {'qty', 'duration_days', 'prescribed_amount'}
+DOC2US_DEPLOY_COLUMNS = [
+    'status', 'patient_name', 'patient_ic', 'mobile', 'email',
+    'item_name', 'active_ingredients', 'indication', 'doc2us_icd_code', 'doc2us_indication', 'diagnosis_search',
+    'route', 'dose', 'dose_unit', 'frequency', 'duration_days', 'prescribed_amount', 'prescribed_unit', 'drug_remark',
+    'questionnaire_mode', 'bp', 'hr', 'glucose', 'last_appointment_date', 'next_appointment_date',
+    'follow_up_under', 'referred_by', 'pharmacist_reg_no', 'screening_remarks'
+]
+REQUIRED_DOC2US_FIELDS = {
+    'patient_name': 'Patient name is required',
+    'patient_ic': 'Patient IC is required',
+    'mobile': 'Mobile number is required',
+    'item_name': 'Medication item name is required',
+    'active_ingredients': 'Active ingredient must be reviewed',
+    'doc2us_icd_code': 'Doc2Us indication dropdown must be selected',
+    'doc2us_indication': 'Doc2Us indication text must be selected',
+    'route': 'Route is required',
+    'dose': 'Dose is required',
+    'dose_unit': 'Dose unit is required',
+    'frequency': 'Frequency is required',
+    'duration_days': 'Duration days must be more than 0',
+    'prescribed_amount': 'Prescribed amount must be more than 0',
+    'prescribed_unit': 'Prescribed unit is required',
+    'questionnaire_mode': 'Minor Ailment / LTM mode is required',
+    'bp': 'BP is required',
+    'next_appointment_date': 'Next appointment date is required',
+    'follow_up_under': 'Follow up under is required',
+    'referred_by': 'Referred by is required',
+    'pharmacist_reg_no': 'Pharmacist registration number is required',
+    'screening_remarks': 'Screening remarks are required',
+}
+
+
+def doc2us_deploy_columns() -> list[str]:
+    return list(DOC2US_DEPLOY_COLUMNS)
+
+
+def _blank(value: object) -> bool:
+    return pd.isna(value) or str(value).strip() == ''
+
+
+def _positive_number(value: object) -> bool:
+    try:
+        return float(value) > 0
+    except (TypeError, ValueError):
+        return False
+
+
+def validate_doc2us_ready_row(row: pd.Series) -> list[str]:
+    issues: list[str] = []
+    for col, message in REQUIRED_DOC2US_FIELDS.items():
+        if col in {'duration_days', 'prescribed_amount'}:
+            if not _positive_number(row.get(col)):
+                issues.append(message)
+        elif _blank(row.get(col)):
+            issues.append(message)
+    mode = str(row.get('questionnaire_mode', '')).strip().upper()
+    if mode and mode not in {'LTM', 'MINOR AILMENT', 'MINOR_AILMENT'}:
+        issues.append('Questionnaire mode must be LTM or Minor Ailment')
+    bp = str(row.get('bp', '')).strip()
+    if bp and '/' not in bp:
+        issues.append('BP must be in systolic/diastolic format')
+    return issues
 
 
 def load_doc2us_indication_options() -> list[tuple[str, str]]:
@@ -176,12 +238,132 @@ def save_edited_plan(jobs_dir: str | Path, job_id: str, edits: dict[str, dict[st
     return _job_summary(job_id, output_path, plan)
 
 
+def _load_doc2us_queue(path: str | Path) -> pd.DataFrame:
+    try:
+        return pd.read_excel(path, sheet_name='DOC2US_READY_UPLOAD')
+    except ValueError:
+        return pd.read_excel(path)
+
+
+def _normalise_deploy_frame(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+    for col in DOC2US_DEPLOY_COLUMNS:
+        if col not in out.columns:
+            out[col] = ''
+    out = out[DOC2US_DEPLOY_COLUMNS]
+    out['status'] = out['status'].fillna('READY').astype(str).str.upper().replace({'': 'READY'})
+    return out
+
+
+def import_edited_doc2us_queue(
+    jobs_dir: str | Path,
+    job_id: str,
+    file_bytes: bytes,
+    original_filename: str,
+) -> Dict[str, Any]:
+    job_dir = _safe_job_dir(jobs_dir, job_id)
+    safe_name = Path(original_filename or 'edited_doc2us_queue.xlsx').name
+    import_path = job_dir / f'imported_{safe_name}'
+    import_path.write_bytes(file_bytes)
+    imported = _normalise_deploy_frame(_load_doc2us_queue(import_path))
+    plan_path = _plan_path(job_dir)
+    plan = pd.read_excel(plan_path, sheet_name='EPS_PLAN')
+    imported_count = 0
+    invalid_count = 0
+    for _, row in imported.iterrows():
+        patient_ic = str(row.get('patient_ic', '')).strip()
+        item_name = str(row.get('item_name', '')).strip()
+        if not patient_ic or not item_name:
+            invalid_count += 1
+            continue
+        matches = plan[(plan['patient_ic'].astype(str).str.strip() == patient_ic) & (plan['item_name'].astype(str).str.strip() == item_name)]
+        if matches.empty:
+            new_row = {col: '' for col in plan.columns}
+            for col in imported.columns:
+                if col in new_row:
+                    new_row[col] = row.get(col, '')
+            new_row['skip_reason'] = ''
+            plan = pd.concat([plan, pd.DataFrame([new_row])], ignore_index=True)
+            target_idx = plan.index[-1]
+        else:
+            target_idx = matches.index[0]
+            for col in imported.columns:
+                if col in plan.columns:
+                    plan.at[target_idx, col] = row.get(col, '')
+        issues = validate_doc2us_ready_row(plan.loc[target_idx])
+        if issues:
+            invalid_count += 1
+            plan.at[target_idx, 'status'] = 'REVIEW'
+            plan.at[target_idx, 'skip_reason'] = '; '.join(issues)
+        else:
+            plan.at[target_idx, 'status'] = 'READY'
+            plan.at[target_idx, 'skip_reason'] = ''
+        imported_count += 1
+    _write_plan_workbook(plan, plan_path)
+    package = create_submit_package(jobs_dir, job_id)
+    return {
+        'job_id': job_id,
+        'import_path': str(import_path),
+        'imported_count': int(imported_count),
+        'invalid_count': int(invalid_count),
+        'queue_path': package['queue_path'],
+        'ready_count': package['count'],
+    }
+
+
+def build_doc2us_automation_manifest(queue_path: str | Path, dry_run: bool = True) -> Dict[str, Any]:
+    queue_path = Path(queue_path)
+    queue = _normalise_deploy_frame(_load_doc2us_queue(queue_path))
+    steps: list[dict[str, Any]] = [{'action': 'login_doc2us_eps', 'url': 'https://eps.doc2us.com/login'}]
+    for idx, row in queue.iterrows():
+        patient = str(row.get('patient_name', '')).strip()
+        ic = str(row.get('patient_ic', '')).strip()
+        med = str(row.get('item_name', '')).strip()
+        steps.extend([
+            {'row': int(idx), 'patient_name': patient, 'patient_ic': ic, 'action': 'search_patient_by_ic'},
+            {'row': int(idx), 'patient_name': patient, 'patient_ic': ic, 'action': 'register_patient_if_missing', 'manual_review_required': True},
+            {'row': int(idx), 'patient_name': patient, 'patient_ic': ic, 'medication': med, 'action': 'fill_medication_record'},
+            {'row': int(idx), 'patient_name': patient, 'patient_ic': ic, 'medication': med, 'action': 'request_prescription_requires_manual_confirm', 'manual_confirm_button_required': True},
+        ])
+    return {
+        'queue_path': str(queue_path),
+        'dry_run': bool(dry_run),
+        'live_submit_enabled': False if dry_run else False,
+        'row_count': int(len(queue)),
+        'safety_note': 'Automation may fill/import data, but live prescription request requires pharmacist confirmation and Doctor approval.',
+        'steps': steps,
+    }
+
+
 def create_submit_package(jobs_dir: str | Path, job_id: str) -> Dict[str, Any]:
     job_dir = _safe_job_dir(jobs_dir, job_id)
     output_path = _plan_path(job_dir)
     plan = pd.read_excel(output_path, sheet_name='EPS_PLAN')
+    invalid_count = 0
+    for idx, row in plan[plan['status'].astype(str).str.upper() == 'READY'].iterrows():
+        issues = validate_doc2us_ready_row(row)
+        if issues:
+            invalid_count += 1
+            plan.at[idx, 'status'] = 'REVIEW'
+            existing_reason = str(plan.at[idx, 'skip_reason'] or '').strip()
+            issue_text = '; '.join(issues)
+            plan.at[idx, 'skip_reason'] = f'{existing_reason}; {issue_text}' if existing_reason else issue_text
+    if invalid_count:
+        _write_plan_workbook(plan, output_path)
     ready = plan[plan['status'].astype(str).str.upper() == 'READY'].copy()
+    for col in DOC2US_DEPLOY_COLUMNS:
+        if col not in ready.columns:
+            ready[col] = ''
+    ready = ready[DOC2US_DEPLOY_COLUMNS]
     queue_path = job_dir / f'{output_path.stem}_DOC2US_READY_QUEUE.xlsx'
     with pd.ExcelWriter(queue_path, engine='openpyxl') as w:
-        ready.to_excel(w, index=False, sheet_name='READY_TO_SUBMIT')
-    return {'job_id': job_id, 'queue_path': str(queue_path), 'count': int(len(ready))}
+        ready.to_excel(w, index=False, sheet_name='DOC2US_READY_UPLOAD')
+        pd.DataFrame({
+            'step': [
+                '1. Pharmacist checks every row in DOC2US_READY_UPLOAD.',
+                '2. Open Doc2Us EPS and create medication record for each patient.',
+                '3. Use active ingredient + Doc2Us indication fields to fill the diagnosis dropdown.',
+                '4. Submit only after final pharmacist confirmation; Doctor approval remains required.'
+            ]
+        }).to_excel(w, index=False, sheet_name='DEPLOY_CHECKLIST')
+    return {'job_id': job_id, 'queue_path': str(queue_path), 'count': int(len(ready)), 'invalid_count': int(invalid_count)}

@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from datetime import date
+import json
 from pathlib import Path
 from html import escape
 
 from fastapi import FastAPI, Request, Form, File, UploadFile, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
 
-from .web_logic import authenticate, process_upload, load_plan, save_edited_plan, create_submit_package, EDITABLE_COLUMNS, render_indication_select, load_doc2us_indication_options
+from .web_logic import authenticate, process_upload, load_plan, save_edited_plan, create_submit_package, EDITABLE_COLUMNS, render_indication_select, load_doc2us_indication_options, import_edited_doc2us_queue, build_doc2us_automation_manifest
 
 BASE = Path(__file__).resolve().parents[1]
 JOBS_DIR = BASE / 'jobs'
@@ -15,7 +16,7 @@ JOBS_DIR = BASE / 'jobs'
 app = FastAPI(title='EPS Shared Automation', version='0.2.0')
 
 CSS = """
-body{font-family:Arial,sans-serif;background:#f6f8fb;color:#1f2937;margin:0;padding:32px}.card{max-width:520px;margin:40px auto;background:white;padding:28px;border-radius:14px;box-shadow:0 8px 30px #0001}.wide{max-width:1400px;margin:20px auto;background:white;padding:24px;border-radius:14px;box-shadow:0 8px 30px #0001}label{display:block;margin:14px 0;font-weight:600}input,select,textarea{box-sizing:border-box;display:block;width:100%;padding:9px;margin-top:6px;border:1px solid #cbd5e1;border-radius:8px}textarea{min-width:180px;min-height:42px}button,.button{background:#0f766e;color:white;border:0;border-radius:8px;padding:11px 16px;text-decoration:none;display:inline-block;font-weight:700;cursor:pointer}.secondary{background:#475569}.danger{background:#b91c1c}.err{background:#fee2e2;color:#991b1b;padding:10px;border-radius:8px}.note{background:#eef6ff;padding:12px;border-radius:8px;margin-top:18px}.summary{margin:14px 0;line-height:2.5}.pill{padding:8px 12px;border-radius:999px;margin-right:10px;font-weight:700}.READY{background:#dcfce7}.REVIEW{background:#fef3c7}.OMIT{background:#fee2e2}table{border-collapse:collapse;width:100%;font-size:13px}th,td{border:1px solid #e5e7eb;padding:7px;vertical-align:top}th{background:#f1f5f9;text-align:left;position:sticky;top:0}.grid{overflow:auto;max-height:72vh}.rowactions{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}.small{font-size:12px;color:#64748b}
+body{font-family:Arial,sans-serif;background:#f6f8fb;color:#1f2937;margin:0;padding:32px}.card{max-width:520px;margin:40px auto;background:white;padding:28px;border-radius:14px;box-shadow:0 8px 30px #0001}.wide{max-width:1500px;margin:20px auto;background:white;padding:24px;border-radius:14px;box-shadow:0 8px 30px #0001}label{display:block;margin:14px 0;font-weight:600}input,select,textarea{box-sizing:border-box;display:block;width:100%;padding:9px;margin-top:6px;border:1px solid #cbd5e1;border-radius:8px}textarea{min-width:180px;min-height:42px}button,.button{background:#0f766e;color:white;border:0;border-radius:8px;padding:11px 16px;text-decoration:none;display:inline-block;font-weight:700;cursor:pointer}.secondary{background:#475569}.danger{background:#b91c1c}.warnbtn{background:#b45309}.err{background:#fee2e2;color:#991b1b;padding:10px;border-radius:8px}.note{background:#eef6ff;padding:12px;border-radius:8px;margin-top:18px}.safety{background:#fff7ed;border-left:5px solid #f97316;padding:12px;border-radius:8px;margin:14px 0}.summary{margin:14px 0;line-height:2.5}.pill{padding:8px 12px;border-radius:999px;margin-right:10px;font-weight:700}.READY{background:#dcfce7}.REVIEW{background:#fef3c7}.OMIT{background:#fee2e2}table{border-collapse:collapse;width:100%;font-size:13px}th,td{border:1px solid #e5e7eb;padding:7px;vertical-align:top}th{background:#f1f5f9;text-align:left;position:sticky;top:0}.grid{overflow:auto;max-height:72vh}.rowactions{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}.small{font-size:12px;color:#64748b}.workflow{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin:16px 0}.step{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px}.step b{color:#0f766e}.stickybar{position:sticky;top:0;background:white;z-index:5;padding-bottom:8px;border-bottom:1px solid #e5e7eb}
 """
 
 
@@ -62,11 +63,19 @@ def render_review(job_id: str, request: Request, notice: str = '') -> HTMLRespon
     body = f'''<main class="wide">
 <h1>EPS Plan Review + Edit</h1>
 <p>Logged in as {escape(email)}</p>{msg}
+<div class="stickybar">
+<div class="workflow">
+  <div class="step"><b>1 Upload</b><br><span class="small">Octopus Poison B/C Excel</span></div>
+  <div class="step"><b>2 AI pre-review</b><br><span class="small">Active ingredient + Doc2Us indication</span></div>
+  <div class="step"><b>3 Pharmacist confirm</b><br><span class="small">Only confirmed rows become READY</span></div>
+  <div class="step"><b>4 Deploy queue</b><br><span class="small">READY-only workbook for Doc2Us entry</span></div>
+</div>
 <div class="summary">{pills}</div>
 <div class="rowactions">
 <a class="button secondary" href="/upload">Upload another file</a>
-<a class="button" href="/download/{escape(job_id)}">Download current Excel</a>
-<form method="post" action="/submit/{escape(job_id)}" style="display:inline"><button type="submit" class="danger">Prepare Doc2Us Submit Queue</button></form>
+<a class="button" href="/download/{escape(job_id)}">Download review Excel</a>
+<form method="post" action="/submit/{escape(job_id)}" style="display:inline"><button type="submit" class="warnbtn">Validate + Prepare Doc2Us Deploy Queue</button></form>
+</div>
 </div>
 <form method="post" action="/save/{escape(job_id)}">
 <p class="note"><b>Editable now:</b> status, patient info, active-ingredient-mapped medication, AI pre-reviewed Doc2Us indication dropdown, dose, frequency, days, amount, BP/HR/glucose, remarks. Change REVIEW to READY only after pharmacist confirms the medication details are correct.</p>
@@ -82,7 +91,7 @@ document.querySelectorAll('select[name$="_doc2us_icd_code"]').forEach(function(s
   }});
 }});
 </script>
-<p class="note"><b>Submit queue:</b> This creates a READY-only queue for Doc2Us submission after final review. The live website submission button is separated so accidental upload does not submit prescriptions.</p>
+<p class="note"><b>Submit queue:</b> The deploy queue validates every READY row first. Missing Doc2Us indication, active ingredient, patient details, dose, quantity, or LTM/questionnaire fields are automatically moved back to REVIEW and excluded.</p>
 </main>'''
     return html_page('Review EPS Plan', body)
 
@@ -180,13 +189,46 @@ def submit_queue(job_id: str, request: Request):
     if not require_login(request):
         return RedirectResponse('/', status_code=303)
     package = create_submit_package(JOBS_DIR, job_id)
+    invalid_note = ''
+    if package.get('invalid_count'):
+        invalid_note = f'<div class="err"><b>{int(package["invalid_count"])} READY row(s) were not deploy-ready.</b> They were moved back to REVIEW with reasons. Please fix them before deploying to Doc2Us.</div>'
     body = f'''<main class="card wide">
-<h1>Doc2Us Submit Queue Prepared</h1>
-<p>{package['count']} READY rows are included. REVIEW and OMIT rows are excluded.</p>
-<p><a class="button" href="/download-submit/{escape(job_id)}">Download READY Submit Queue</a> <a class="button secondary" href="/review/{escape(job_id)}">Back to review</a></p>
-<div class="note"><b>Important:</b> The website now gives you a submit queue option, but full one-click live Doc2Us submission still needs final EPS selector mapping in the real EPS browser flow. I will not silently submit anything without pharmacist confirmation. Next build step is to connect this queue to the EPS browser automation and test one selected patient first.</div>
+<h1>Doc2Us Deploy Queue Prepared</h1>
+{invalid_note}
+<p>{package['count']} validated READY rows are included. REVIEW and OMIT rows are excluded.</p>
+<div class="safety"><b>Safety gate:</b> This workbook is ready for Doc2Us data entry/import workflow, but it does not bypass pharmacist review or Doctor approval. Submit live EPS records only after checking the patient, active ingredient, indication, quantity, and questionnaire fields.</div>
+<p><a class="button" href="/download-submit/{escape(job_id)}">Download Doc2Us Deploy Queue</a> <a class="button secondary" href="/automation-manifest/{escape(job_id)}">Download Automation Dry-Run Manifest</a> <a class="button secondary" href="/review/{escape(job_id)}">Back to review</a></p>
+<div class="note"><b>Excel edit loop:</b> Download the Doc2Us Deploy Queue, edit it in Excel if needed, then upload it below. The app will re-import the edited workbook, validate again, and rebuild the READY queue.</div>
+<form method="post" action="/import-queue/{escape(job_id)}" enctype="multipart/form-data">
+<label>Upload edited Doc2Us queue Excel <input name="queue_file" type="file" accept=".xlsx,.xls" required></label>
+<button type="submit">Import Edited Excel + Revalidate</button>
+</form>
+<div class="note"><b>Workbook sheets:</b> DOC2US_READY_UPLOAD contains the clean deploy data. DEPLOY_CHECKLIST contains the step-by-step live Doc2Us verification checklist.</div>
 </main>'''
     return html_page('Doc2Us Submit Queue', body)
+
+
+@app.post('/import-queue/{job_id}', response_class=HTMLResponse)
+async def import_queue(job_id: str, request: Request, queue_file: UploadFile = File(...)):
+    if not require_login(request):
+        return RedirectResponse('/', status_code=303)
+    if not queue_file.filename or not queue_file.filename.lower().endswith(('.xlsx', '.xls')):
+        raise HTTPException(400, 'Please upload an Excel file')
+    data = await queue_file.read()
+    result = import_edited_doc2us_queue(JOBS_DIR, job_id, data, queue_file.filename)
+    notice = f'Imported {result["imported_count"]} edited rows. READY now: {result["ready_count"]}. Invalid rows moved to REVIEW: {result["invalid_count"]}.'
+    return render_review(job_id, request, notice)
+
+
+@app.get('/automation-manifest/{job_id}')
+def automation_manifest(job_id: str):
+    if not job_id.isalnum():
+        raise HTTPException(400, 'Invalid job id')
+    package = create_submit_package(JOBS_DIR, job_id)
+    manifest = build_doc2us_automation_manifest(package['queue_path'], dry_run=True)
+    manifest_path = JOBS_DIR / job_id / 'doc2us_automation_dry_run_manifest.json'
+    manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding='utf-8')
+    return FileResponse(str(manifest_path), filename='doc2us_automation_dry_run_manifest.json')
 
 
 @app.get('/download-submit/{job_id}')
