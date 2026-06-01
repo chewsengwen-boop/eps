@@ -10,6 +10,15 @@ import pandas as pd
 
 from . import eps_bulk_core
 
+EDITABLE_COLUMNS = [
+    'status', 'skip_reason', 'patient_name', 'patient_ic', 'mobile', 'email', 'item_name', 'indication',
+    'diagnosis_search', 'route', 'dose', 'dose_unit', 'frequency', 'duration_days', 'prescribed_amount',
+    'prescribed_unit', 'drug_remark', 'questionnaire_mode', 'bp', 'hr', 'glucose', 'last_appointment_date',
+    'next_appointment_date', 'follow_up_under', 'referred_by', 'pharmacist_reg_no', 'screening_remarks'
+]
+NUMERIC_COLUMNS = {'qty', 'duration_days', 'prescribed_amount'}
+
+
 def _allowed_logins() -> dict[str, str]:
     """Pilot shared-app login list.
 
@@ -29,6 +38,48 @@ def authenticate(email: str, password: str) -> bool:
 
 def make_job_id() -> str:
     return uuid.uuid4().hex
+
+
+def _safe_job_dir(jobs_dir: str | Path, job_id: str) -> Path:
+    if not job_id or not str(job_id).isalnum():
+        raise ValueError('Invalid job id')
+    job_dir = Path(jobs_dir) / job_id
+    if not job_dir.exists():
+        raise FileNotFoundError('Job not found')
+    return job_dir
+
+
+def _plan_path(job_dir: Path) -> Path:
+    files = list(job_dir.glob('*_EPS_PLAN.xlsx'))
+    if not files:
+        raise FileNotFoundError('Plan workbook not found')
+    return files[0]
+
+
+def _write_plan_workbook(plan: pd.DataFrame, output_path: Path) -> None:
+    with pd.ExcelWriter(output_path, engine='openpyxl') as w:
+        plan.to_excel(w, index=False, sheet_name='EPS_PLAN')
+        plan.groupby(['status', 'medication_class'], dropna=False).size().reset_index(name='count').to_excel(
+            w, index=False, sheet_name='SUMMARY'
+        )
+
+
+def _job_summary(job_id: str, output_path: Path, plan: pd.DataFrame) -> Dict[str, Any]:
+    counts = {str(k): int(v) for k, v in plan['status'].value_counts(dropna=False).to_dict().items()}
+    preview_cols = ['status','skip_reason','patient_name','patient_ic','item_name','qty','medication_class','indication','frequency','duration_days','prescribed_amount','next_appointment_date']
+    preview = plan[[c for c in preview_cols if c in plan.columns]].fillna('').to_dict(orient='records')
+    return {
+        'job_id': job_id,
+        'output_path': str(output_path),
+        'download_name': output_path.name,
+        'counts': counts,
+        'preview': preview,
+    }
+
+
+def load_plan(jobs_dir: str | Path, job_id: str) -> pd.DataFrame:
+    job_dir = _safe_job_dir(jobs_dir, job_id)
+    return pd.read_excel(_plan_path(job_dir), sheet_name='EPS_PLAN')
 
 
 def process_upload(
@@ -56,17 +107,48 @@ def process_upload(
 
     plan = eps_bulk_core.make_plan(str(input_path), pharmacist_name, reg_no, pd.to_datetime(apply_date).date())
     output_path = job_dir / f'{input_path.stem}_EPS_PLAN.xlsx'
-    with pd.ExcelWriter(output_path, engine='openpyxl') as w:
-        plan.to_excel(w, index=False, sheet_name='EPS_PLAN')
-        plan.groupby(['status','medication_class'], dropna=False).size().reset_index(name='count').to_excel(w, index=False, sheet_name='SUMMARY')
-    counts = {str(k): int(v) for k, v in plan['status'].value_counts(dropna=False).to_dict().items()}
-    preview_cols = ['status','skip_reason','patient_name','patient_ic','item_name','qty','medication_class','indication','frequency','duration_days','prescribed_amount','next_appointment_date']
-    preview = plan[preview_cols].fillna('').to_dict(orient='records')
-    return {
-        'job_id': job_id,
-        'input_path': str(input_path),
-        'output_path': str(output_path),
-        'download_name': output_path.name,
-        'counts': counts,
-        'preview': preview,
-    }
+    _write_plan_workbook(plan, output_path)
+    summary = _job_summary(job_id, output_path, plan)
+    summary['input_path'] = str(input_path)
+    return summary
+
+
+def save_edited_plan(jobs_dir: str | Path, job_id: str, edits: dict[str, dict[str, str]]) -> Dict[str, Any]:
+    job_dir = _safe_job_dir(jobs_dir, job_id)
+    output_path = _plan_path(job_dir)
+    plan = pd.read_excel(output_path, sheet_name='EPS_PLAN')
+    for row_key, values in edits.items():
+        if not str(row_key).isdigit():
+            continue
+        idx = int(row_key)
+        if idx not in plan.index:
+            continue
+        for col in EDITABLE_COLUMNS:
+            if col not in values or col not in plan.columns:
+                continue
+            val = values[col]
+            if col == 'status':
+                val = str(val or '').strip().upper()
+                if val not in {'READY', 'REVIEW', 'OMIT'}:
+                    val = 'REVIEW'
+            elif col in NUMERIC_COLUMNS:
+                try:
+                    val = int(float(val)) if str(val).strip() != '' else 0
+                except ValueError:
+                    val = 0
+            else:
+                val = str(val or '').strip()
+            plan.at[idx, col] = val
+    _write_plan_workbook(plan, output_path)
+    return _job_summary(job_id, output_path, plan)
+
+
+def create_submit_package(jobs_dir: str | Path, job_id: str) -> Dict[str, Any]:
+    job_dir = _safe_job_dir(jobs_dir, job_id)
+    output_path = _plan_path(job_dir)
+    plan = pd.read_excel(output_path, sheet_name='EPS_PLAN')
+    ready = plan[plan['status'].astype(str).str.upper() == 'READY'].copy()
+    queue_path = job_dir / f'{output_path.stem}_DOC2US_READY_QUEUE.xlsx'
+    with pd.ExcelWriter(queue_path, engine='openpyxl') as w:
+        ready.to_excel(w, index=False, sheet_name='READY_TO_SUBMIT')
+    return {'job_id': job_id, 'queue_path': str(queue_path), 'count': int(len(ready))}
