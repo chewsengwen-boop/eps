@@ -180,7 +180,7 @@ def _job_summary(job_id: str, output_path: Path, plan: pd.DataFrame) -> Dict[str
 
 def load_plan(jobs_dir: str | Path, job_id: str) -> pd.DataFrame:
     job_dir = _safe_job_dir(jobs_dir, job_id)
-    return pd.read_excel(_plan_path(job_dir), sheet_name='EPS_PLAN')
+    return pd.read_excel(_plan_path(job_dir), sheet_name='EPS_PLAN', dtype=object)
 
 
 def process_upload(
@@ -217,7 +217,13 @@ def process_upload(
 def save_edited_plan(jobs_dir: str | Path, job_id: str, edits: dict[str, dict[str, str]]) -> Dict[str, Any]:
     job_dir = _safe_job_dir(jobs_dir, job_id)
     output_path = _plan_path(job_dir)
-    plan = pd.read_excel(output_path, sheet_name='EPS_PLAN')
+    plan = pd.read_excel(output_path, sheet_name='EPS_PLAN', dtype=object)
+    for col in EDITABLE_COLUMNS:
+        if col not in plan.columns:
+            plan[col] = ''
+    text_columns = [c for c in EDITABLE_COLUMNS if c not in NUMERIC_COLUMNS and c in plan.columns]
+    for col in text_columns:
+        plan[col] = plan[col].astype(object)
     for row_key, values in edits.items():
         if not str(row_key).isdigit():
             continue

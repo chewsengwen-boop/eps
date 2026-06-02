@@ -16,6 +16,7 @@ from app.web_logic import (
     import_edited_doc2us_queue,
     build_doc2us_automation_manifest,
     deploy_doc2us_ready_rows,
+    EDITABLE_COLUMNS,
 )
 
 SAMPLE = '/mnt/c/Users/User/Downloads/OUTLET POISON B&C TRANSACTION NO_01-06-2026 (Web).xlsx'
@@ -103,6 +104,41 @@ def test_save_edited_plan_updates_review_row_and_rebuilds_workbook(tmp_path):
     plan_path = next((tmp_path / job['job_id']).glob('*_EPS_PLAN.xlsx'))
     downloaded = pd.read_excel(plan_path, sheet_name='EPS_PLAN')
     assert downloaded.loc[idx, 'item_name'] == 'AMLODIPINE 10MG EDITED'
+
+
+def test_save_edited_plan_handles_full_browser_form_string_values(tmp_path):
+    job = _sample_job(tmp_path)
+    df = load_plan(tmp_path, job['job_id']).fillna('')
+    edits = {}
+    for idx, row in df.iterrows():
+        edits[str(idx)] = {col: str(row.get(col, '')) for col in EDITABLE_COLUMNS if col in df.columns}
+    first = str(df.index[0])
+    edits[first]['patient_ic'] = '550722135174'
+    edits[first]['mobile'] = '60123456789'
+    edits[first]['status'] = 'READY'
+    saved = save_edited_plan(tmp_path, job['job_id'], edits)
+    updated = load_plan(tmp_path, job['job_id'])
+    assert saved['counts']['READY'] >= 1
+    assert str(updated.loc[int(first), 'patient_ic']) == '550722135174'
+
+
+def test_save_edited_plan_creates_missing_new_editable_columns(tmp_path):
+    job = _sample_job(tmp_path)
+    plan_path = next((tmp_path / job['job_id']).glob('*_EPS_PLAN.xlsx'))
+    df = pd.read_excel(plan_path, sheet_name='EPS_PLAN')
+    df = df.drop(columns=[c for c in ['active_ingredients', 'doc2us_icd_code', 'doc2us_indication'] if c in df.columns])
+    with pd.ExcelWriter(plan_path, engine='openpyxl') as w:
+        df.to_excel(w, index=False, sheet_name='EPS_PLAN')
+    idx = int(df.index[0])
+    save_edited_plan(tmp_path, job['job_id'], {str(idx): {
+        'status': 'READY',
+        'active_ingredients': 'Amlodipine',
+        'doc2us_icd_code': 'I10',
+        'doc2us_indication': 'Essential hypertension',
+    }})
+    updated = load_plan(tmp_path, job['job_id'])
+    assert updated.loc[idx, 'active_ingredients'] == 'Amlodipine'
+    assert updated.loc[idx, 'doc2us_icd_code'] == 'I10'
 
 
 def test_create_submit_package_contains_ready_rows_only(tmp_path):
