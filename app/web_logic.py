@@ -12,6 +12,7 @@ from typing import Dict, Any
 import pandas as pd
 
 from . import eps_bulk_core
+from .doc2us_live import submit_doc2us_queue_live
 
 EDITABLE_COLUMNS = [
     'status', 'skip_reason', 'patient_name', 'patient_ic', 'mobile', 'email', 'item_name', 'active_ingredients', 'indication',
@@ -324,11 +325,10 @@ def import_edited_doc2us_queue(
 
 
 def deploy_doc2us_ready_rows(jobs_dir: str | Path, job_id: str, live_submit: bool = False) -> Dict[str, Any]:
-    """Prepare the end-phase Doc2Us deployment result.
+    """Prepare or execute the end-phase Doc2Us deployment result.
 
-    One READY medication row equals one prescription request. Until exact live Doc2Us
-    selectors are validated, live_submit=False creates the deployment package and
-    notification counts without clicking the final website submit button.
+    One READY medication row equals one prescription request. live_submit=True runs
+    the Playwright browser automation against Doc2Us EPS and records per-row results.
     """
     package = create_submit_package(jobs_dir, job_id)
     manifest = build_doc2us_automation_manifest(package['queue_path'], dry_run=not live_submit)
@@ -336,11 +336,27 @@ def deploy_doc2us_ready_rows(jobs_dir: str | Path, job_id: str, live_submit: boo
     manifest['prescription_count'] = int(package['count'])
     manifest['medication_count'] = int(package['count'])
     manifest['invalid_count'] = int(package.get('invalid_count', 0))
-    manifest['notification'] = (
-        f"Doc2Us deployment prepared: {int(package['count'])} medication(s) / "
-        f"{int(package['count'])} prescription request(s). "
-        f"{int(package.get('invalid_count', 0))} invalid READY row(s) moved back to REVIEW."
-    )
+    if live_submit and int(package['count']) > 0:
+        live = submit_doc2us_queue_live(
+            package['queue_path'],
+            Path(jobs_dir) / job_id / 'doc2us_live_screenshots',
+            final_submit=True,
+        )
+        manifest.update(live)
+        manifest['dry_run'] = False
+        verified = sum(1 for r in live.get('results', []) if str(r.get('status')) == 'VERIFIED')
+        manifest['verified_count'] = int(verified)
+        manifest['notification'] = (
+            f"Live Doc2Us submission verified: {verified} medication record(s) created in EPS portal, "
+            f"{int(live.get('failed_count', 0))} failed. "
+            f"{int(package.get('invalid_count', 0))} invalid READY row(s) moved back to REVIEW."
+        )
+    else:
+        manifest['notification'] = (
+            f"Doc2Us deployment prepared: {int(package['count'])} medication(s) / "
+            f"{int(package['count'])} prescription request(s). "
+            f"{int(package.get('invalid_count', 0))} invalid READY row(s) moved back to REVIEW."
+        )
     manifest_path = Path(jobs_dir) / job_id / 'doc2us_deployment_manifest.json'
     manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding='utf-8')
     return manifest

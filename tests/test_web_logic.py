@@ -2,6 +2,7 @@ import io
 from pathlib import Path
 import pandas as pd
 
+from app import web_logic
 from app.web_logic import (
     authenticate,
     make_job_id,
@@ -230,3 +231,30 @@ def test_deploy_doc2us_ready_rows_counts_one_medication_as_one_prescription(tmp_
     assert 'medication(s)' in result['notification']
     assert 'prescription request(s)' in result['notification']
     assert (tmp_path / job['job_id'] / 'doc2us_deployment_manifest.json').exists()
+
+
+def test_live_deploy_invokes_doc2us_submitter_and_records_real_counts(tmp_path, monkeypatch):
+    job = _sample_job(tmp_path)
+    calls = []
+
+    def fake_submit(queue_path, screenshot_dir, final_submit=True):
+        q = pd.read_excel(queue_path, sheet_name='DOC2US_READY_UPLOAD')
+        calls.append((Path(queue_path), Path(screenshot_dir), final_submit, len(q)))
+        return {
+            'submitted_count': len(q),
+            'failed_count': 0,
+            'screenshot_dir': str(screenshot_dir),
+            'results': [{'row': i, 'status': 'VERIFIED', 'before_count': 36 + i, 'after_count': 37 + i} for i in range(len(q))],
+        }
+
+    monkeypatch.setattr(web_logic, 'submit_doc2us_queue_live', fake_submit)
+    result = deploy_doc2us_ready_rows(tmp_path, job['job_id'], live_submit=True)
+    assert calls
+    assert calls[0][2] is True
+    assert result['dry_run'] is False
+    assert result['live_submit_enabled'] is True
+    assert result['submitted_count'] == job['counts']['READY']
+    assert result['failed_count'] == 0
+    assert result['medication_count'] == job['counts']['READY']
+    assert 'Live Doc2Us submission verified' in result['notification']
+    assert result['verified_count'] == job['counts']['READY']

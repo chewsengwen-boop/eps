@@ -7,6 +7,7 @@ from html import escape
 
 from fastapi import FastAPI, Request, Form, File, UploadFile, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
+from starlette.concurrency import run_in_threadpool
 
 from .web_logic import authenticate, process_upload, load_plan, save_edited_plan, create_submit_package, EDITABLE_COLUMNS, render_indication_select, load_doc2us_indication_options, import_edited_doc2us_queue, build_doc2us_automation_manifest, deploy_doc2us_ready_rows
 
@@ -192,20 +193,32 @@ async def deploy(job_id: str, request: Request):
         return RedirectResponse('/', status_code=303)
     form = await request.form()
     save_edited_plan(JOBS_DIR, job_id, extract_row_edits(form))
-    result = deploy_doc2us_ready_rows(JOBS_DIR, job_id, live_submit=False)
+    result = await run_in_threadpool(deploy_doc2us_ready_rows, JOBS_DIR, job_id, True)
     invalid = int(result.get('invalid_count', 0))
+    failed = int(result.get('failed_count', 0))
+    verified = int(result.get('verified_count', 0))
     invalid_note = ''
     if invalid:
-        invalid_note = f'<div class="err">{invalid} row(s) could not deploy and were moved back to REVIEW. Fix them and deploy again.</div>'
+        invalid_note = f'<div class="err">{invalid} row(s) are incomplete and were moved back to REVIEW. Fix them before live Doc2Us submission.</div>'
+    failed_note = ''
+    if failed:
+        failed_note = f'<div class="err">{failed} row(s) failed during live Doc2Us browser submission. Check doc2us_deployment_manifest.json and screenshots in the job folder.</div>'
+    result_rows = ''.join(
+        f'<tr><td>{escape(str(r.get("row", "")))}</td><td>{escape(str(r.get("patient_ic", "")))}</td><td>{escape(str(r.get("medication", "")))}</td><td>{escape(str(r.get("status", "")))}</td><td>{escape(str(r.get("before_count", "")))}</td><td>{escape(str(r.get("after_count", "")))}</td><td>{escape(str(r.get("error", "")))}</td></tr>'
+        for r in result.get('results', [])
+    )
+    result_table = f'<div class="grid"><table><thead><tr><th>Row</th><th>IC</th><th>Medication</th><th>Status</th><th>Before Count</th><th>After Count</th><th>Error</th></tr></thead><tbody>{result_rows}</tbody></table></div>' if result_rows else ''
     body = f'''<main class="card wide">
-<h1>Doc2Us Deployment Notification</h1>
-{invalid_note}
+<h1>Doc2Us Live Deployment Status</h1>
+{invalid_note}{failed_note}
 <div class="summary">
-<span class="pill READY">Medication applied: {int(result['medication_count'])}</span>
-<span class="pill READY">Prescription applied: {int(result['prescription_count'])}</span>
+<span class="pill READY">Verified EPS records created: {verified}</span>
+<span class="pill OMIT">Failed: {failed}</span>
 </div>
-<p>One medication equals one prescription.</p>
-<div class="safety"><b>Status:</b> In-app Doc2Us deployment runner completed this batch preparation for https://eps.doc2us.com/login. Patient search, register-if-missing, medication fill, and prescription request steps are handled by the app flow.</div>
+<p>One medication equals one prescription request row.</p>
+<div class="safety"><b>Status:</b> {escape(str(result.get('notification', 'Live deployment completed.')))}</div>
+{result_table}
+<p class="small">Evidence folder: {escape(str(result.get('screenshot_dir', '')))}</p>
 <p class="rowactions"><a class="button secondary" href="/review/{escape(job_id)}">Back to Review</a><a class="button" href="/upload">Upload Next Raw Excel</a></p>
 </main>'''
     return html_page('Doc2Us Deployment Notification', body)
@@ -253,7 +266,10 @@ async def import_queue(job_id: str, request: Request, queue_file: UploadFile = F
 <p>Imported {result['imported_count']} rows from your Excel.</p>
 <p>READY rows available to deploy: {result['ready_count']}</p>
 <p>Invalid rows moved to REVIEW: {result['invalid_count']}</p>
-<div class="safety"><b>End phase ready:</b> The selected Excel has been validated and the in-app Doc2Us deployment runner is ready. Patient search, register-if-missing, medication fill, and prescription request steps run from the app flow.</div>
+<div class="safety"><b>End phase ready:</b> The selected Excel has been validated. Press the button below to run the live Doc2Us browser automation. It will only report VERIFIED when the EPS Total Medication Record count increases after submit.</div>
+<form method="post" action="/deploy/{escape(job_id)}">
+  <button type="submit">Deploy Now To Doc2Us EPS And Verify Record Count</button>
+</form>
 <p class="rowactions"><a class="button secondary" href="/review/{escape(job_id)}">Back to Review</a></p>
 </main>'''
     return html_page('Ready For Doc2Us Deployment', body)
