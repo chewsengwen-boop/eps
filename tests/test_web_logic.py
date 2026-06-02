@@ -165,3 +165,14 @@ def test_build_doc2us_automation_manifest_is_dry_run_and_has_confirm_gate(tmp_pa
     assert manifest['steps'][0]['action'] == 'login_doc2us_eps'
     assert any(step['action'] == 'register_patient_if_missing' for step in manifest['steps'])
     assert any(step['action'] == 'request_prescription_requires_manual_confirm' for step in manifest['steps'])
+
+
+def test_save_edited_plan_does_not_crash_when_optional_summary_columns_missing(tmp_path):
+    job = _sample_job(tmp_path)
+    job_dir = tmp_path / job['job_id']
+    plan_path = next(job_dir.glob('*_EPS_PLAN.xlsx'))
+    df = pd.read_excel(plan_path, sheet_name='EPS_PLAN').drop(columns=['medication_class'])
+    with pd.ExcelWriter(plan_path, engine='openpyxl') as w:
+        df.to_excel(w, index=False, sheet_name='EPS_PLAN')
+    result = save_edited_plan(tmp_path, job['job_id'], {'0': {'status': 'REVIEW'}})
+    assert 'REVIEW' in result['counts']

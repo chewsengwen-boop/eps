@@ -196,14 +196,19 @@ def submit_queue(job_id: str, request: Request):
 <h1>Doc2Us Deploy Queue Prepared</h1>
 {invalid_note}
 <p>{package['count']} validated READY rows are included. REVIEW and OMIT rows are excluded.</p>
-<div class="safety"><b>Safety gate:</b> This workbook is ready for Doc2Us data entry/import workflow, but it does not bypass pharmacist review or Doctor approval. Submit live EPS records only after checking the patient, active ingredient, indication, quantity, and questionnaire fields.</div>
-<p><a class="button" href="/download-submit/{escape(job_id)}">Download Doc2Us Deploy Queue</a> <a class="button secondary" href="/automation-manifest/{escape(job_id)}">Download Automation Dry-Run Manifest</a> <a class="button secondary" href="/review/{escape(job_id)}">Back to review</a></p>
-<div class="note"><b>Excel edit loop:</b> Download the Doc2Us Deploy Queue, edit it in Excel if needed, then upload it below. The app will re-import the edited workbook, validate again, and rebuild the READY queue.</div>
-<form method="post" action="/import-queue/{escape(job_id)}" enctype="multipart/form-data">
-<label>Upload edited Doc2Us queue Excel <input name="queue_file" type="file" accept=".xlsx,.xls" required></label>
-<button type="submit">Import Edited Excel + Revalidate</button>
-</form>
-<div class="note"><b>Workbook sheets:</b> DOC2US_READY_UPLOAD contains the clean deploy data. DEPLOY_CHECKLIST contains the step-by-step live Doc2Us verification checklist.</div>
+<div class="safety"><b>Before deploy:</b> Choose the Excel file you want the automation to use. The automation package is prepared for Doc2Us data entry. Live prescription request still stops at pharmacist confirmation; Doctor approval remains required.</div>
+<div class="workflow">
+  <div class="step"><b>Deploy with Excel</b><br><span class="small">Upload the final Excel queue to use for Doc2Us automation.</span>
+    <form method="post" action="/import-queue/{escape(job_id)}" enctype="multipart/form-data">
+      <label>Excel file <input name="queue_file" type="file" accept=".xlsx,.xls" required></label>
+      <button type="submit">Use This Excel To Deploy</button>
+    </form>
+  </div>
+  <div class="step"><b>Do not deploy</b><br><span class="small">Go back and continue checking/editing rows.</span><br><br>
+    <a class="button secondary" href="/review/{escape(job_id)}">Do Not Deploy</a>
+  </div>
+</div>
+<p class="rowactions"><a class="button" href="/download-submit/{escape(job_id)}">Download Current Deploy Excel</a> <a class="button secondary" href="/automation-manifest/{escape(job_id)}">Download Dry-Run Automation File</a></p>
 </main>'''
     return html_page('Doc2Us Submit Queue', body)
 
@@ -216,8 +221,15 @@ async def import_queue(job_id: str, request: Request, queue_file: UploadFile = F
         raise HTTPException(400, 'Please upload an Excel file')
     data = await queue_file.read()
     result = import_edited_doc2us_queue(JOBS_DIR, job_id, data, queue_file.filename)
-    notice = f'Imported {result["imported_count"]} edited rows. READY now: {result["ready_count"]}. Invalid rows moved to REVIEW: {result["invalid_count"]}.'
-    return render_review(job_id, request, notice)
+    body = f'''<main class="card wide">
+<h1>File Ready For Doc2Us Deployment</h1>
+<p>Imported {result['imported_count']} rows from your Excel.</p>
+<p>READY rows available to deploy: {result['ready_count']}</p>
+<p>Invalid rows moved to REVIEW: {result['invalid_count']}</p>
+<div class="safety"><b>End phase package ready:</b> The deploy Excel and dry-run automation file are ready. Use these to troubleshoot the Doc2Us browser automation. The automation file includes patient search, register-if-missing, medication record fill, and prescription request confirmation-gate steps.</div>
+<p class="rowactions"><a class="button" href="/download-submit/{escape(job_id)}">Download Final Deploy Excel</a> <a class="button secondary" href="/automation-manifest/{escape(job_id)}">Download Automation File</a> <a class="button secondary" href="/review/{escape(job_id)}">Back to Review</a></p>
+</main>'''
+    return html_page('Ready For Doc2Us Deployment', body)
 
 
 @app.get('/automation-manifest/{job_id}')

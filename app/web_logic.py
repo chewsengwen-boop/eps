@@ -152,6 +152,11 @@ def _plan_path(job_dir: Path) -> Path:
 
 
 def _write_plan_workbook(plan: pd.DataFrame, output_path: Path) -> None:
+    plan = plan.copy()
+    if 'status' not in plan.columns:
+        plan['status'] = 'REVIEW'
+    if 'medication_class' not in plan.columns:
+        plan['medication_class'] = ''
     with pd.ExcelWriter(output_path, engine='openpyxl') as w:
         plan.to_excel(w, index=False, sheet_name='EPS_PLAN')
         plan.groupby(['status', 'medication_class'], dropna=False).size().reset_index(name='count').to_excel(
