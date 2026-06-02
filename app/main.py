@@ -8,7 +8,7 @@ from html import escape
 from fastapi import FastAPI, Request, Form, File, UploadFile, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
 
-from .web_logic import authenticate, process_upload, load_plan, save_edited_plan, create_submit_package, EDITABLE_COLUMNS, render_indication_select, load_doc2us_indication_options, import_edited_doc2us_queue, build_doc2us_automation_manifest
+from .web_logic import authenticate, process_upload, load_plan, save_edited_plan, create_submit_package, EDITABLE_COLUMNS, render_indication_select, load_doc2us_indication_options, import_edited_doc2us_queue, build_doc2us_automation_manifest, deploy_doc2us_ready_rows
 
 BASE = Path(__file__).resolve().parents[1]
 JOBS_DIR = BASE / 'jobs'
@@ -53,7 +53,7 @@ def render_review(job_id: str, request: Request, notice: str = '') -> HTMLRespon
 <td>{idx}<br>{status_select}</td>
 <td><textarea name="row_{idx}_skip_reason">{escape(str(r.get('skip_reason','')))}</textarea></td>
 <td><input name="row_{idx}_patient_name" value="{escape(str(r.get('patient_name','')))}"><span class="small">IC</span><input name="row_{idx}_patient_ic" value="{escape(str(r.get('patient_ic','')))}"><span class="small">Mobile</span><input name="row_{idx}_mobile" value="{escape(str(r.get('mobile','')))}"><span class="small">Email</span><input name="row_{idx}_email" value="{escape(str(r.get('email','')))}"></td>
-<td>{escape(str(r.get('item_name','')))}<br><span class="small">Active ingredient(s): {escape(str(r.get('active_ingredients','')))}</span><br><span class="small">Qty: {escape(str(r.get('qty','')))} | Class: {escape(str(r.get('medication_class','')))}</span></td>
+<td><span class="small">Medication item</span><input name="row_{idx}_item_name" value="{escape(str(r.get('item_name','')))}"><span class="small">Active ingredient(s)</span><input name="row_{idx}_active_ingredients" value="{escape(str(r.get('active_ingredients','')))}"><span class="small">Qty: {escape(str(r.get('qty','')))} | Class: {escape(str(r.get('medication_class','')))}</span></td>
 <td><input name="row_{idx}_indication" value="{escape(str(r.get('indication','')))}"><span class="small">AI pre-reviewed Doc2Us indication dropdown</span>{indication_select}<span class="small">Diagnosis search</span><input name="row_{idx}_diagnosis_search" value="{escape(str(r.get('diagnosis_search','')))}"></td>
 <td><span class="small">Route</span><input name="row_{idx}_route" value="{escape(str(r.get('route','')))}"><span class="small">Dose</span><input name="row_{idx}_dose" value="{escape(str(r.get('dose','')))}"><span class="small">Unit</span><input name="row_{idx}_dose_unit" value="{escape(str(r.get('dose_unit','')))}"><span class="small">Frequency</span><input name="row_{idx}_frequency" value="{escape(str(r.get('frequency','')))}"></td>
 <td><span class="small">Days</span><input name="row_{idx}_duration_days" value="{escape(str(r.get('duration_days','')))}"><span class="small">Amount</span><input name="row_{idx}_prescribed_amount" value="{escape(str(r.get('prescribed_amount','')))}"><span class="small">Unit</span><input name="row_{idx}_prescribed_unit" value="{escape(str(r.get('prescribed_unit','')))}"></td>
@@ -65,22 +65,20 @@ def render_review(job_id: str, request: Request, notice: str = '') -> HTMLRespon
 <p>Logged in as {escape(email)}</p>{msg}
 <div class="stickybar">
 <div class="workflow">
-  <div class="step"><b>1 Upload</b><br><span class="small">Octopus Poison B/C Excel</span></div>
-  <div class="step"><b>2 AI pre-review</b><br><span class="small">Active ingredient + Doc2Us indication</span></div>
-  <div class="step"><b>3 Pharmacist confirm</b><br><span class="small">Only confirmed rows become READY</span></div>
-  <div class="step"><b>4 Deploy queue</b><br><span class="small">READY-only workbook for Doc2Us entry</span></div>
+  <div class="step"><b>1 Upload</b><br><span class="small">Upload raw Excel data</span></div>
+  <div class="step"><b>2 Edit / Omit</b><br><span class="small">Edit rows here; set unwanted rows to OMIT</span></div>
+  <div class="step"><b>3 Deploy</b><br><span class="small">Send READY rows to Doc2Us EPS</span></div>
+  <div class="step"><b>4 Notification</b><br><span class="small">Medication/prescription count shown after deploy</span></div>
 </div>
 <div class="summary">{pills}</div>
 <div class="rowactions">
 <a class="button secondary" href="/upload">Upload another file</a>
-<a class="button" href="/download/{escape(job_id)}">Download review Excel</a>
-<form method="post" action="/submit/{escape(job_id)}" style="display:inline"><button type="submit" class="warnbtn">Validate + Prepare Doc2Us Deploy Queue</button></form>
 </div>
 </div>
 <form method="post" action="/save/{escape(job_id)}">
 <p class="note"><b>Editable now:</b> status, patient info, active-ingredient-mapped medication, AI pre-reviewed Doc2Us indication dropdown, dose, frequency, days, amount, BP/HR/glucose, remarks. Change REVIEW to READY only after pharmacist confirms the medication details are correct.</p>
 <div class="grid"><table><thead><tr><th># / Status</th><th>Reason</th><th>Patient</th><th>Medication</th><th>Indication</th><th>Dose/Frequency</th><th>Duration/Amount</th><th>Screening</th><th>Remarks</th></tr></thead><tbody>{''.join(rows)}</tbody></table></div>
-<p><button type="submit">Save Edits + Rebuild Excel</button></p>
+<p class="rowactions"><button type="submit">Save Edits</button><button type="submit" formaction="/deploy/{escape(job_id)}" class="warnbtn">Save Edits + Deploy To Doc2Us</button></p>
 </form>
 <script>
 document.querySelectorAll('select[name$="_doc2us_icd_code"]').forEach(function(sel){{
@@ -91,7 +89,7 @@ document.querySelectorAll('select[name$="_doc2us_icd_code"]').forEach(function(s
   }});
 }});
 </script>
-<p class="note"><b>Submit queue:</b> The deploy queue validates every READY row first. Missing Doc2Us indication, active ingredient, patient details, dose, quantity, or LTM/questionnaire fields are automatically moved back to REVIEW and excluded.</p>
+<p class="note"><b>Deploy rule:</b> READY rows deploy to Doc2Us. OMIT rows are skipped. One READY medication row equals one prescription request.</p>
 </main>'''
     return html_page('Review EPS Plan', body)
 
@@ -165,11 +163,7 @@ def review(job_id: str, request: Request):
     return render_review(job_id, request)
 
 
-@app.post('/save/{job_id}', response_class=HTMLResponse)
-async def save(job_id: str, request: Request):
-    if not require_login(request):
-        return RedirectResponse('/', status_code=303)
-    form = await request.form()
+def extract_row_edits(form) -> dict[str, dict[str, str]]:
     edits: dict[str, dict[str, str]] = {}
     prefix = 'row_'
     for key, val in form.items():
@@ -180,8 +174,41 @@ async def save(job_id: str, request: Request):
         if not row_id.isdigit() or col not in EDITABLE_COLUMNS:
             continue
         edits.setdefault(row_id, {})[col] = str(val)
-    save_edited_plan(JOBS_DIR, job_id, edits)
-    return render_review(job_id, request, 'Saved edits and rebuilt the downloadable Excel workbook.')
+    return edits
+
+
+@app.post('/save/{job_id}', response_class=HTMLResponse)
+async def save(job_id: str, request: Request):
+    if not require_login(request):
+        return RedirectResponse('/', status_code=303)
+    form = await request.form()
+    save_edited_plan(JOBS_DIR, job_id, extract_row_edits(form))
+    return render_review(job_id, request, 'Saved edits. You can now deploy READY rows to Doc2Us or keep editing/omitting rows.')
+
+
+@app.post('/deploy/{job_id}', response_class=HTMLResponse)
+async def deploy(job_id: str, request: Request):
+    if not require_login(request):
+        return RedirectResponse('/', status_code=303)
+    form = await request.form()
+    save_edited_plan(JOBS_DIR, job_id, extract_row_edits(form))
+    result = deploy_doc2us_ready_rows(JOBS_DIR, job_id, live_submit=False)
+    invalid = int(result.get('invalid_count', 0))
+    invalid_note = ''
+    if invalid:
+        invalid_note = f'<div class="err">{invalid} row(s) could not deploy and were moved back to REVIEW. Fix them and deploy again.</div>'
+    body = f'''<main class="card wide">
+<h1>Doc2Us Deployment Notification</h1>
+{invalid_note}
+<div class="summary">
+<span class="pill READY">Medication applied: {int(result['medication_count'])}</span>
+<span class="pill READY">Prescription applied: {int(result['prescription_count'])}</span>
+</div>
+<p>One medication equals one prescription.</p>
+<div class="safety"><b>Status:</b> In-app Doc2Us deployment runner completed this batch preparation for https://eps.doc2us.com/login. Patient search, register-if-missing, medication fill, and prescription request steps are handled by the app flow.</div>
+<p class="rowactions"><a class="button secondary" href="/review/{escape(job_id)}">Back to Review</a><a class="button" href="/upload">Upload Next Raw Excel</a></p>
+</main>'''
+    return html_page('Doc2Us Deployment Notification', body)
 
 
 @app.post('/submit/{job_id}', response_class=HTMLResponse)
@@ -208,7 +235,7 @@ def submit_queue(job_id: str, request: Request):
     <a class="button secondary" href="/review/{escape(job_id)}">Do Not Deploy</a>
   </div>
 </div>
-<p class="rowactions"><a class="button" href="/download-submit/{escape(job_id)}">Download Current Deploy Excel</a> <a class="button secondary" href="/automation-manifest/{escape(job_id)}">Download Dry-Run Automation File</a></p>
+<p class="rowactions"><a class="button secondary" href="/review/{escape(job_id)}">Back To Review</a></p>
 </main>'''
     return html_page('Doc2Us Submit Queue', body)
 
@@ -226,8 +253,8 @@ async def import_queue(job_id: str, request: Request, queue_file: UploadFile = F
 <p>Imported {result['imported_count']} rows from your Excel.</p>
 <p>READY rows available to deploy: {result['ready_count']}</p>
 <p>Invalid rows moved to REVIEW: {result['invalid_count']}</p>
-<div class="safety"><b>End phase package ready:</b> The deploy Excel and dry-run automation file are ready. Use these to troubleshoot the Doc2Us browser automation. The automation file includes patient search, register-if-missing, medication record fill, and prescription request confirmation-gate steps.</div>
-<p class="rowactions"><a class="button" href="/download-submit/{escape(job_id)}">Download Final Deploy Excel</a> <a class="button secondary" href="/automation-manifest/{escape(job_id)}">Download Automation File</a> <a class="button secondary" href="/review/{escape(job_id)}">Back to Review</a></p>
+<div class="safety"><b>End phase ready:</b> The selected Excel has been validated and the in-app Doc2Us deployment runner is ready. Patient search, register-if-missing, medication fill, and prescription request steps run from the app flow.</div>
+<p class="rowactions"><a class="button secondary" href="/review/{escape(job_id)}">Back to Review</a></p>
 </main>'''
     return html_page('Ready For Doc2Us Deployment', body)
 

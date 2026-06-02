@@ -15,6 +15,7 @@ from app.web_logic import (
     doc2us_deploy_columns,
     import_edited_doc2us_queue,
     build_doc2us_automation_manifest,
+    deploy_doc2us_ready_rows,
 )
 
 SAMPLE = '/mnt/c/Users/User/Downloads/OUTLET POISON B&C TRANSACTION NO_01-06-2026 (Web).xlsx'
@@ -90,12 +91,18 @@ def test_save_edited_plan_updates_review_row_and_rebuilds_workbook(tmp_path):
             'frequency': 'Once daily',
             'duration_days': '30',
             'prescribed_amount': '30',
+            'item_name': 'AMLODIPINE 10MG EDITED',
+            'active_ingredients': 'AMLODIPINE',
         }
     })
     assert saved['counts']['READY'] == 8
     edited = load_plan(tmp_path, job['job_id'])
     assert edited.loc[idx, 'status'] == 'READY'
     assert edited.loc[idx, 'prescribed_amount'] == 30
+    assert edited.loc[idx, 'item_name'] == 'AMLODIPINE 10MG EDITED'
+    plan_path = next((tmp_path / job['job_id']).glob('*_EPS_PLAN.xlsx'))
+    downloaded = pd.read_excel(plan_path, sheet_name='EPS_PLAN')
+    assert downloaded.loc[idx, 'item_name'] == 'AMLODIPINE 10MG EDITED'
 
 
 def test_create_submit_package_contains_ready_rows_only(tmp_path):
@@ -176,3 +183,14 @@ def test_save_edited_plan_does_not_crash_when_optional_summary_columns_missing(t
         df.to_excel(w, index=False, sheet_name='EPS_PLAN')
     result = save_edited_plan(tmp_path, job['job_id'], {'0': {'status': 'REVIEW'}})
     assert 'REVIEW' in result['counts']
+
+
+def test_deploy_doc2us_ready_rows_counts_one_medication_as_one_prescription(tmp_path):
+    job = _sample_job(tmp_path)
+    result = deploy_doc2us_ready_rows(tmp_path, job['job_id'])
+    assert result['medication_count'] == job['counts']['READY']
+    assert result['prescription_count'] == job['counts']['READY']
+    assert result['dry_run'] is True
+    assert 'medication(s)' in result['notification']
+    assert 'prescription request(s)' in result['notification']
+    assert (tmp_path / job['job_id'] / 'doc2us_deployment_manifest.json').exists()

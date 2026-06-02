@@ -4,6 +4,7 @@ import os
 import shutil
 import uuid
 import csv
+import json
 from html import escape
 from pathlib import Path
 from typing import Dict, Any
@@ -13,7 +14,7 @@ import pandas as pd
 from . import eps_bulk_core
 
 EDITABLE_COLUMNS = [
-    'status', 'skip_reason', 'patient_name', 'patient_ic', 'mobile', 'email', 'item_name', 'indication',
+    'status', 'skip_reason', 'patient_name', 'patient_ic', 'mobile', 'email', 'item_name', 'active_ingredients', 'indication',
     'diagnosis_search', 'doc2us_icd_code', 'doc2us_indication', 'route', 'dose', 'dose_unit', 'frequency', 'duration_days', 'prescribed_amount',
     'prescribed_unit', 'drug_remark', 'questionnaire_mode', 'bp', 'hr', 'glucose', 'last_appointment_date',
     'next_appointment_date', 'follow_up_under', 'referred_by', 'pharmacist_reg_no', 'screening_remarks'
@@ -314,6 +315,29 @@ def import_edited_doc2us_queue(
         'queue_path': package['queue_path'],
         'ready_count': package['count'],
     }
+
+
+def deploy_doc2us_ready_rows(jobs_dir: str | Path, job_id: str, live_submit: bool = False) -> Dict[str, Any]:
+    """Prepare the end-phase Doc2Us deployment result.
+
+    One READY medication row equals one prescription request. Until exact live Doc2Us
+    selectors are validated, live_submit=False creates the deployment package and
+    notification counts without clicking the final website submit button.
+    """
+    package = create_submit_package(jobs_dir, job_id)
+    manifest = build_doc2us_automation_manifest(package['queue_path'], dry_run=not live_submit)
+    manifest['live_submit_enabled'] = bool(live_submit)
+    manifest['prescription_count'] = int(package['count'])
+    manifest['medication_count'] = int(package['count'])
+    manifest['invalid_count'] = int(package.get('invalid_count', 0))
+    manifest['notification'] = (
+        f"Doc2Us deployment prepared: {int(package['count'])} medication(s) / "
+        f"{int(package['count'])} prescription request(s). "
+        f"{int(package.get('invalid_count', 0))} invalid READY row(s) moved back to REVIEW."
+    )
+    manifest_path = Path(jobs_dir) / job_id / 'doc2us_deployment_manifest.json'
+    manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding='utf-8')
+    return manifest
 
 
 def build_doc2us_automation_manifest(queue_path: str | Path, dry_run: bool = True) -> Dict[str, Any]:
