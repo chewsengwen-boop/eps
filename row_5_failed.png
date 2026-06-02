@@ -1,0 +1,63 @@
+{
+  "queue_path": "/home/johnny/eps-web-automation/jobs/browserfullfd5f3763/browser_full_EPS_PLAN_DOC2US_READY_QUEUE.xlsx",
+  "dry_run": false,
+  "live_submit_enabled": true,
+  "row_count": 1,
+  "safety_note": "Automation may fill/import data, but live prescription request requires pharmacist confirmation and Doctor approval.",
+  "steps": [
+    {
+      "action": "login_doc2us_eps",
+      "url": "https://eps.doc2us.com/login"
+    },
+    {
+      "row": 0,
+      "patient_name": "Lu siew ding",
+      "patient_ic": "550722135174",
+      "action": "search_patient_by_ic"
+    },
+    {
+      "row": 0,
+      "patient_name": "Lu siew ding",
+      "patient_ic": "550722135174",
+      "action": "register_patient_if_missing",
+      "manual_review_required": true
+    },
+    {
+      "row": 0,
+      "patient_name": "Lu siew ding",
+      "patient_ic": "550722135174",
+      "medication": "Amlodipine 10mg",
+      "action": "fill_medication_record"
+    },
+    {
+      "row": 0,
+      "patient_name": "Lu siew ding",
+      "patient_ic": "550722135174",
+      "medication": "Amlodipine 10mg",
+      "action": "request_prescription_requires_manual_confirm",
+      "manual_confirm_button_required": true
+    }
+  ],
+  "prescription_count": 1,
+  "medication_count": 1,
+  "invalid_count": 0,
+  "submitted_count": 1,
+  "failed_count": 0,
+  "results": [
+    {
+      "row": 0,
+      "patient_ic": "550722135174",
+      "patient_name": "Lu siew ding",
+      "medication": "Amlodipine 10mg",
+      "status": "VERIFIED",
+      "before_count": 40,
+      "after_count": 41,
+      "url": "https://eps.doc2us.com/medication-record;searchKey=550722135174",
+      "screenshot": "/home/johnny/eps-web-automation/jobs/browserfullfd5f3763/doc2us_live_screenshots/row_1_submitted.png",
+      "verification_screenshot": "/home/johnny/eps-web-automation/jobs/browserfullfd5f3763/doc2us_live_screenshots/row_1_verified_count.png"
+    }
+  ],
+  "screenshot_dir": "/home/johnny/eps-web-automation/jobs/browserfullfd5f3763/doc2us_live_screenshots",
+  "verified_count": 1,
+  "notification": "Live Doc2Us submission verified: 1 medication record(s) created in EPS portal, 0 failed. 0 invalid READY row(s) moved back to REVIEW."
+}

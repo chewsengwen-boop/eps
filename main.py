@@ -1,0 +1,20 @@
+[
+  "tests/test_main_deploy_route.py::test_website_deploy_button_runs_live_submitter_without_500",
+  "tests/test_web_logic.py::test_authenticate_accepts_doc2us_trial_account",
+  "tests/test_web_logic.py::test_authenticate_rejects_wrong_password",
+  "tests/test_web_logic.py::test_build_doc2us_automation_manifest_is_dry_run_and_has_confirm_gate",
+  "tests/test_web_logic.py::test_create_submit_package_contains_ready_rows_only",
+  "tests/test_web_logic.py::test_create_submit_package_downgrades_invalid_ready_rows_to_review",
+  "tests/test_web_logic.py::test_deploy_doc2us_ready_rows_counts_one_medication_as_one_prescription",
+  "tests/test_web_logic.py::test_doc2us_default_indications_are_loaded_from_harvested_dropdown",
+  "tests/test_web_logic.py::test_import_edited_doc2us_queue_roundtrip_revalidates_rows",
+  "tests/test_web_logic.py::test_indication_select_preserves_ai_prereview_choice_and_allows_dropdown_change",
+  "tests/test_web_logic.py::test_live_deploy_invokes_doc2us_submitter_and_records_real_counts",
+  "tests/test_web_logic.py::test_make_job_id_is_safe_and_unique",
+  "tests/test_web_logic.py::test_process_upload_generates_ready_review_omit",
+  "tests/test_web_logic.py::test_ready_row_validation_requires_doc2us_fields_before_deploy",
+  "tests/test_web_logic.py::test_save_edited_plan_creates_missing_new_editable_columns",
+  "tests/test_web_logic.py::test_save_edited_plan_does_not_crash_when_optional_summary_columns_missing",
+  "tests/test_web_logic.py::test_save_edited_plan_handles_full_browser_form_string_values",
+  "tests/test_web_logic.py::test_save_edited_plan_updates_review_row_and_rebuilds_workbook"
+]

@@ -1,0 +1,275 @@
+{
+  "queue_path": "/home/johnny/eps-web-automation/jobs/58d1c1261c114f1884f9e8492f9b8c3b/OUTLET POISON B&C TRANSACTION NO_02-06-2026 (Web)_EPS_PLAN_DOC2US_READY_QUEUE.xlsx",
+  "dry_run": false,
+  "live_submit_enabled": true,
+  "row_count": 7,
+  "safety_note": "Automation may fill/import data, but live prescription request requires pharmacist confirmation and Doctor approval.",
+  "steps": [
+    {
+      "action": "login_doc2us_eps",
+      "url": "https://eps.doc2us.com/login"
+    },
+    {
+      "row": 0,
+      "patient_name": "CHAN SIEH KAM",
+      "patient_ic": "580330135017",
+      "action": "search_patient_by_ic"
+    },
+    {
+      "row": 0,
+      "patient_name": "CHAN SIEH KAM",
+      "patient_ic": "580330135017",
+      "action": "register_patient_if_missing",
+      "manual_review_required": true
+    },
+    {
+      "row": 0,
+      "patient_name": "CHAN SIEH KAM",
+      "patient_ic": "580330135017",
+      "medication": "IQNYDE TABLET 100MG 4S",
+      "action": "fill_medication_record"
+    },
+    {
+      "row": 0,
+      "patient_name": "CHAN SIEH KAM",
+      "patient_ic": "580330135017",
+      "medication": "IQNYDE TABLET 100MG 4S",
+      "action": "request_prescription_requires_manual_confirm",
+      "manual_confirm_button_required": true
+    },
+    {
+      "row": 1,
+      "patient_name": "DIDI YU POA CHING",
+      "patient_ic": "980825136137",
+      "action": "search_patient_by_ic"
+    },
+    {
+      "row": 1,
+      "patient_name": "DIDI YU POA CHING",
+      "patient_ic": "980825136137",
+      "action": "register_patient_if_missing",
+      "manual_review_required": true
+    },
+    {
+      "row": 1,
+      "patient_name": "DIDI YU POA CHING",
+      "patient_ic": "980825136137",
+      "medication": "VOZAN 20MG FILM COATED TABLETS 1S",
+      "action": "fill_medication_record"
+    },
+    {
+      "row": 1,
+      "patient_name": "DIDI YU POA CHING",
+      "patient_ic": "980825136137",
+      "medication": "VOZAN 20MG FILM COATED TABLETS 1S",
+      "action": "request_prescription_requires_manual_confirm",
+      "manual_confirm_button_required": true
+    },
+    {
+      "row": 2,
+      "patient_name": "SIA PICK HIONG",
+      "patient_ic": "721124135135",
+      "action": "search_patient_by_ic"
+    },
+    {
+      "row": 2,
+      "patient_name": "SIA PICK HIONG",
+      "patient_ic": "721124135135",
+      "action": "register_patient_if_missing",
+      "manual_review_required": true
+    },
+    {
+      "row": 2,
+      "patient_name": "SIA PICK HIONG",
+      "patient_ic": "721124135135",
+      "medication": "NORGESIC 35/450MG 12S (NEW) BOX PACKING",
+      "action": "fill_medication_record"
+    },
+    {
+      "row": 2,
+      "patient_name": "SIA PICK HIONG",
+      "patient_ic": "721124135135",
+      "medication": "NORGESIC 35/450MG 12S (NEW) BOX PACKING",
+      "action": "request_prescription_requires_manual_confirm",
+      "manual_confirm_button_required": true
+    },
+    {
+      "row": 3,
+      "patient_name": "TANG CHEE WONG",
+      "patient_ic": "601008715603",
+      "action": "search_patient_by_ic"
+    },
+    {
+      "row": 3,
+      "patient_name": "TANG CHEE WONG",
+      "patient_ic": "601008715603",
+      "action": "register_patient_if_missing",
+      "manual_review_required": true
+    },
+    {
+      "row": 3,
+      "patient_name": "TANG CHEE WONG",
+      "patient_ic": "601008715603",
+      "medication": "*NEXIUM 40MG 2X7S",
+      "action": "fill_medication_record"
+    },
+    {
+      "row": 3,
+      "patient_name": "TANG CHEE WONG",
+      "patient_ic": "601008715603",
+      "medication": "*NEXIUM 40MG 2X7S",
+      "action": "request_prescription_requires_manual_confirm",
+      "manual_confirm_button_required": true
+    },
+    {
+      "row": 4,
+      "patient_name": "TANG CHEE WONG",
+      "patient_ic": "601008715603",
+      "action": "search_patient_by_ic"
+    },
+    {
+      "row": 4,
+      "patient_name": "TANG CHEE WONG",
+      "patient_ic": "601008715603",
+      "action": "register_patient_if_missing",
+      "manual_review_required": true
+    },
+    {
+      "row": 4,
+      "patient_name": "TANG CHEE WONG",
+      "patient_ic": "601008715603",
+      "medication": "[RX]*XIGDUO XR 10MG/1000MG 4X7S",
+      "action": "fill_medication_record"
+    },
+    {
+      "row": 4,
+      "patient_name": "TANG CHEE WONG",
+      "patient_ic": "601008715603",
+      "medication": "[RX]*XIGDUO XR 10MG/1000MG 4X7S",
+      "action": "request_prescription_requires_manual_confirm",
+      "manual_confirm_button_required": true
+    },
+    {
+      "row": 5,
+      "patient_name": "WONG LEH SIONG",
+      "patient_ic": "590920135374",
+      "action": "search_patient_by_ic"
+    },
+    {
+      "row": 5,
+      "patient_name": "WONG LEH SIONG",
+      "patient_ic": "590920135374",
+      "action": "register_patient_if_missing",
+      "manual_review_required": true
+    },
+    {
+      "row": 5,
+      "patient_name": "WONG LEH SIONG",
+      "patient_ic": "590920135374",
+      "medication": "[RX]SANDOZ ROSUVASTATIN 20MG 2X15S-NEW",
+      "action": "fill_medication_record"
+    },
+    {
+      "row": 5,
+      "patient_name": "WONG LEH SIONG",
+      "patient_ic": "590920135374",
+      "medication": "[RX]SANDOZ ROSUVASTATIN 20MG 2X15S-NEW",
+      "action": "request_prescription_requires_manual_confirm",
+      "manual_confirm_button_required": true
+    },
+    {
+      "row": 6,
+      "patient_name": "WONG YEW LIEN",
+      "patient_ic": "781002136185",
+      "action": "search_patient_by_ic"
+    },
+    {
+      "row": 6,
+      "patient_name": "WONG YEW LIEN",
+      "patient_ic": "781002136185",
+      "action": "register_patient_if_missing",
+      "manual_review_required": true
+    },
+    {
+      "row": 6,
+      "patient_name": "WONG YEW LIEN",
+      "patient_ic": "781002136185",
+      "medication": "NORGESIC 35/450MG 12S (NEW) BOX PACKING",
+      "action": "fill_medication_record"
+    },
+    {
+      "row": 6,
+      "patient_name": "WONG YEW LIEN",
+      "patient_ic": "781002136185",
+      "medication": "NORGESIC 35/450MG 12S (NEW) BOX PACKING",
+      "action": "request_prescription_requires_manual_confirm",
+      "manual_confirm_button_required": true
+    }
+  ],
+  "prescription_count": 7,
+  "medication_count": 7,
+  "invalid_count": 0,
+  "submitted_count": 0,
+  "failed_count": 7,
+  "results": [
+    {
+      "row": 0,
+      "patient_ic": "580330135017",
+      "medication": "IQNYDE TABLET 100MG 4S",
+      "status": "FAILED",
+      "error": "Final submit clicked, but EPS count did not increase for IC 580330135017. Before=11, after=11. Check screenshot: /home/johnny/eps-web-automation/jobs/58d1c1261c114f1884f9e8492f9b8c3b/doc2us_live_screenshots/row_1_verified_count.png",
+      "screenshot": "/home/johnny/eps-web-automation/jobs/58d1c1261c114f1884f9e8492f9b8c3b/doc2us_live_screenshots/row_1_failed.png"
+    },
+    {
+      "row": 1,
+      "patient_ic": "980825136137",
+      "medication": "VOZAN 20MG FILM COATED TABLETS 1S",
+      "status": "FAILED",
+      "error": "Final submit clicked, but EPS count did not increase for IC 980825136137. Before=4, after=4. Check screenshot: /home/johnny/eps-web-automation/jobs/58d1c1261c114f1884f9e8492f9b8c3b/doc2us_live_screenshots/row_2_verified_count.png",
+      "screenshot": "/home/johnny/eps-web-automation/jobs/58d1c1261c114f1884f9e8492f9b8c3b/doc2us_live_screenshots/row_2_failed.png"
+    },
+    {
+      "row": 2,
+      "patient_ic": "721124135135",
+      "medication": "NORGESIC 35/450MG 12S (NEW) BOX PACKING",
+      "status": "FAILED",
+      "error": "Final submit clicked, but EPS count did not increase for IC 721124135135. Before=1, after=1. Check screenshot: /home/johnny/eps-web-automation/jobs/58d1c1261c114f1884f9e8492f9b8c3b/doc2us_live_screenshots/row_3_verified_count.png",
+      "screenshot": "/home/johnny/eps-web-automation/jobs/58d1c1261c114f1884f9e8492f9b8c3b/doc2us_live_screenshots/row_3_failed.png"
+    },
+    {
+      "row": 3,
+      "patient_ic": "601008715603",
+      "medication": "*NEXIUM 40MG 2X7S",
+      "status": "FAILED",
+      "error": "Final submit clicked, but EPS count did not increase for IC 601008715603. Before=20, after=20. Check screenshot: /home/johnny/eps-web-automation/jobs/58d1c1261c114f1884f9e8492f9b8c3b/doc2us_live_screenshots/row_4_verified_count.png",
+      "screenshot": "/home/johnny/eps-web-automation/jobs/58d1c1261c114f1884f9e8492f9b8c3b/doc2us_live_screenshots/row_4_failed.png"
+    },
+    {
+      "row": 4,
+      "patient_ic": "601008715603",
+      "medication": "[RX]*XIGDUO XR 10MG/1000MG 4X7S",
+      "status": "FAILED",
+      "error": "Final submit clicked, but EPS count did not increase for IC 601008715603. Before=20, after=20. Check screenshot: /home/johnny/eps-web-automation/jobs/58d1c1261c114f1884f9e8492f9b8c3b/doc2us_live_screenshots/row_5_verified_count.png",
+      "screenshot": "/home/johnny/eps-web-automation/jobs/58d1c1261c114f1884f9e8492f9b8c3b/doc2us_live_screenshots/row_5_failed.png"
+    },
+    {
+      "row": 5,
+      "patient_ic": "590920135374",
+      "medication": "[RX]SANDOZ ROSUVASTATIN 20MG 2X15S-NEW",
+      "status": "FAILED",
+      "error": "Final submit clicked, but EPS count did not increase for IC 590920135374. Before=13, after=13. Check screenshot: /home/johnny/eps-web-automation/jobs/58d1c1261c114f1884f9e8492f9b8c3b/doc2us_live_screenshots/row_6_verified_count.png",
+      "screenshot": "/home/johnny/eps-web-automation/jobs/58d1c1261c114f1884f9e8492f9b8c3b/doc2us_live_screenshots/row_6_failed.png"
+    },
+    {
+      "row": 6,
+      "patient_ic": "781002136185",
+      "medication": "NORGESIC 35/450MG 12S (NEW) BOX PACKING",
+      "status": "FAILED",
+      "error": "Final submit clicked, but EPS count did not increase for IC 781002136185. Before=2, after=2. Check screenshot: /home/johnny/eps-web-automation/jobs/58d1c1261c114f1884f9e8492f9b8c3b/doc2us_live_screenshots/row_7_verified_count.png",
+      "screenshot": "/home/johnny/eps-web-automation/jobs/58d1c1261c114f1884f9e8492f9b8c3b/doc2us_live_screenshots/row_7_failed.png"
+    }
+  ],
+  "screenshot_dir": "/home/johnny/eps-web-automation/jobs/58d1c1261c114f1884f9e8492f9b8c3b/doc2us_live_screenshots",
+  "verified_count": 0,
+  "notification": "Live Doc2Us submission verified: 0 medication record(s) created in EPS portal, 7 failed. 0 invalid READY row(s) moved back to REVIEW."
+}
